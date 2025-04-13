@@ -1,0 +1,187 @@
+/* template/css/base.css */
+
+/* ===============================
+   Basic Reset / Global Settings
+=============================== */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Noto Sans JP', 'Noto Sans TC', sans-serif;
+  background-color: #F0F8FF;
+  /* Default background/text colors are app-specific */
+}
+
+/* ===============================
+   Common Header Styles
+=============================== */
+#main-header {
+  height: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  box-sizing: border-box; /* Include padding in width/height */
+  background-color: #000095;
+  color: #FFFFFF;
+  /* Background color, text color are app-specific */
+}
+
+#main-header .logo-container {
+  display: flex;
+  align-items: center;
+}
+
+/* Style for the new header logo */
+#main-header .header-logo {
+  width: 35px;
+  height: 35px;
+  margin-right: 10px;
+}
+
+/* Renamed from header-image to header-logo for clarity */
+/* #main-header .header-image {
+  width: 35px;
+  height: 35px;
+  margin-right: 10px;
+} */
+
+#main-header .title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1.3rem;
+  /* Text color is now set in #main-header */
+}
+
+/* Placeholder for header controls - styles are likely app-specific */
+#main-header .header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* Common gap, can be overridden */
+}
+
+/* ===============================
+   Common Main Content Area (Optional Base Styling)
+=============================== */
+#app-content {
+  padding: 20px; /* Add padding top/bottom/left/right */
+  /* Add common padding or margins if applicable across all apps */
+  /* Example: padding: 10px; */
+}
+
+/* ===============================
+   Utility Classes (Optional - Add common helpers if identified)
+=============================== */
+/* Example:
+.clickable {
+  cursor: pointer;
+}
+*/
+
+/* ===============================
+   Word Card Styles
+=============================== */
+.card-container {
+  perspective: 1000px; /* For 3D flip effect */
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.card {
+  width: 300px;
+  height: 180px;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+  cursor: pointer; /* Indicate it's clickable */
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.card.flipped {
+  transform: rotateY(180deg);
+}
+
+.card-front,
+.card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.card-front {
+  background-color: #FFFFFF; /* White front */
+  color: #333;
+}
+
+.card-back {
+  background-color: #E6F7FF; /* Light blue back */
+  color: #333;
+  transform: rotateY(180deg);
+}
+
+.card .pinyin {
+  font-size: 1rem;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.card .word {
+  font-family: 'Noto Sans TC', sans-serif; /* Use Traditional Chinese font */
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.card .definition {
+  /* Apply similar styles as .word, but adjust for Japanese */
+  font-family: 'Noto Sans JP', 'Noto Sans TC', sans-serif; /* Prioritize Japanese font */
+  font-size: 2.2rem; /* Increase font size further */
+  font-weight: bold;
+  margin: 0; /* Remove margin that might affect centering */
+}
+
+.card .example-sentence {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+/* ===============================
+   Control Button Styles
+=============================== */
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.controls button {
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-family: 'Noto Sans JP', sans-serif;
+  background-color: #000095; /* Match header */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: inline-flex; /* Align icon and text */
+  align-items: center;
+  gap: 5px; /* Space between icon and text */
+}
+
+.controls button:hover {
+  background-color: #0000C0; /* Slightly lighter blue on hover */
+}
+
+.controls button i {
+  font-size: 1.2em; /* Make icons slightly larger */
+} 

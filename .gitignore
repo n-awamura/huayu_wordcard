@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+*.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Editor specific
+.vscode/
+.idea/
+
+# Node modules (if used in the future)
+node_modules/
+
+# Environment files (if used in the future)
+.env
+.env.* 

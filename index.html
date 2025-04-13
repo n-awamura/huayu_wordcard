@@ -29,6 +29,45 @@
   <!-- App Specific Head Content -->
   <!-- Add other app-specific meta or links here -->
 
+  <!-- Firebase Initialization and Auth Check -->
+  <script type="module">
+    // Import necessary Firebase functions
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+    // Optional: Add Analytics if you want it on this page too
+    // import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-analytics.js";
+
+    // Your web app's Firebase configuration (ensure this matches login.html)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCDVpswEXB4h19WuFb8WXL4A1C6vQp75bk",
+      authDomain: "fudaoxiang-wordcard.firebaseapp.com",
+      projectId: "fudaoxiang-wordcard",
+      storageBucket: "fudaoxiang-wordcard.firebasestorage.app",
+      messagingSenderId: "590803182098",
+      appId: "1:590803182098:web:73a873ec2d8c848667aecb",
+      measurementId: "G-62CCVCJ94K"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    // Optional: Initialize Analytics
+    // const analytics = getAnalytics(app);
+
+    // Listen for authentication state changes
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        // User is signed out
+        console.log("User not signed in, redirecting to login.html");
+        window.location.href = "login.html";
+      } else {
+        // User is signed in
+        console.log("User is signed in:", user.uid);
+        // You could potentially display user info or enable features here
+      }
+    });
+  </script>
+
 </head>
 <body>
   <!-- Header -->

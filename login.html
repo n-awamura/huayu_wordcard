@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>WORDCARD ログイン</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- PWA / Mobile specific -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <!-- <link rel="apple-touch-icon" ... > App specific icon recommended -->
+  <!-- <meta name="theme-color" ... > App specific color recommended -->
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Google Fonts (Match index.html) -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background-color: #F0F8FF; /* Match body background from style.css */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .card-title {
+      font-family: 'Montserrat', sans-serif;
+    }
+    .btn-primary {
+        background-color: #000095; /* Match header color */
+        border-color: #000095;
+    }
+    .btn-primary:hover {
+        background-color: #0000C0;
+        border-color: #0000C0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card mx-auto shadow-sm" style="max-width: 400px;">
+      <div class="card-body p-4">
+        <div class="text-center mb-4">
+            <img src="img/elephant.png" alt="Logo" width="50" class="mb-2">
+            <h4 class="card-title">WORDCARD ログイン</h4>
+        </div>
+        <form id="loginForm">
+          <div class="mb-3">
+            <label for="email" class="form-label">メールアドレス</label>
+            <input type="email" class="form-control" id="email" placeholder="メールアドレスを入力" required>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">パスワード</label>
+            <input type="password" class="form-control" id="password" placeholder="パスワードを入力" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">ログイン</button>
+          <div id="loginError" class="text-danger mt-3" style="display:none;"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Firebase App (use compat version if needed by other parts, or modular) -->
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js"; // Updated version
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-analytics.js"; // Added Analytics
+    // Keep Auth imports for login functionality
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js"; // Updated version
+
+    // Your web app's Firebase configuration (Updated)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCDVpswEXB4h19WuFb8WXL4A1C6vQp75bk",
+      authDomain: "fudaoxiang-wordcard.firebaseapp.com",
+      projectId: "fudaoxiang-wordcard",
+      storageBucket: "fudaoxiang-wordcard.firebasestorage.app", // Corrected key name
+      messagingSenderId: "590803182098",
+      appId: "1:590803182098:web:73a873ec2d8c848667aecb",
+      measurementId: "G-62CCVCJ94K"
+    };
+
+    // Initialize Firebase (Updated)
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const auth = getAuth(app); // Keep Auth initialization
+
+    // ログイン処理 (Keep existing logic)
+    const loginForm = document.getElementById("loginForm");
+    const loginError = document.getElementById("loginError");
+
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      loginError.style.display = "none"; // Reset error message
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      signInWithEmailAndPassword(auth, email, password)
+        .then((userCredential) => {
+          console.log("ログイン成功:", userCredential.user);
+          // ログイン成功後、index.html にリダイレクト
+          window.location.href = "index.html";
+        })
+        .catch((error) => {
+          console.error("ログインエラー:", error);
+          loginError.style.display = "block";
+          // Provide more user-friendly error messages if needed
+          loginError.textContent = "メールアドレスまたはパスワードが正しくありません。"; // Example
+        });
+    });
+  </script>
+</body>
+</html> 

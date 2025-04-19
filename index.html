@@ -22,6 +22,7 @@
 
   <!-- App Specific CSS -->
   <link rel="stylesheet" href="css/style.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="img/elephant.png">
 
   <!-- Firebase / Other Libraries (Load per app) -->
   <!-- Add necessary library scripts here -->
@@ -33,6 +34,7 @@
   <script type="module">
     // Import necessary Firebase functions
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
     // Optional: Add Analytics if you want it on this page too
     // import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-analytics.js";
@@ -50,6 +52,7 @@
 
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
     const auth = getAuth(app);
     // Optional: Initialize Analytics
     // const analytics = getAnalytics(app);
@@ -66,6 +69,9 @@
         // You could potentially display user info or enable features here
       }
     });
+
+    // Make db and auth available to script.js (using window object for simplicity)
+    window.firebaseInstances = { db, auth };
   </script>
 
 </head>
@@ -73,42 +79,177 @@
   <!-- Header -->
   <header id="main-header">
     <div class="logo-container">
-      <img src="img/elephant.png" alt="Logo" class="header-logo"> <!-- Added logo -->
+      <img src="img/elephant.png" alt="Logo" class="header-logo" id="header-elephant-icon"> <!-- Added ID -->
+      <div class="header-bubble" id="header-speech-bubble"></div> <!-- Added Bubble Div -->
       <span class="title">WORDCARD</span> <!-- App specific title -->
     </div>
     <div class="header-controls">
-      <!-- Example: Settings button -->
-      <!-- <i class="bi bi-gear"></i> -->
+      <!-- Add level select and menu button -->
+      <select id="level-select" name="level">
+        <option value="novice_1">準備級一級</option>
+        <option value="novice_2">準備級二級</option>
+        <option value="level_1">入門級</option>
+        <option value="level_2">基礎級</option>
+        <option value="level_3">進階級</option>
+        <option value="level_4">高階級</option>
+        <option value="level_5">流利級</option>
+      </select>
+      <i class="bi bi-three-dots-vertical" id="header-menu-button"></i>
+      <!-- Dropdown Menu (Initially Hidden) -->
+      <div id="header-menu-dropdown" class="header-menu hidden">
+          <ul>
+              <li id="menu-item-history"><i class="bi bi-clock-history"></i> 履歴</li>
+              <li id="menu-item-remaining"><i class="bi bi-card-list"></i> 残りの単語</li>
+              <li class="menu-separator"><hr></li> <!-- Separator -->
+              <li id="menu-item-initialize"><i class="bi bi-trash"></i> 初期化 (現レベル)</li>
+              <li id="menu-item-restore"><i class="bi bi-cloud-download"></i> リストア</li>
+              <li class="menu-separator"><hr></li> <!-- Separator -->
+              <li id="menu-item-logout"><i class="bi bi-box-arrow-right"></i> ログアウト</li>
+              <li class="menu-separator"><hr></li> <!-- Separator -->
+              <li id="user-display" class="user-email-display hidden"></li> <!-- User email display moved down -->
+          </ul>
+      </div>
     </div>
   </header>
 
+  <!-- Restored Date Display (Commented Out) -->
+  <!-- <div id="current-date-display"></div> -->
+
+  <!-- Removed Set Info Display -->
+  <!-- <div id="set-info">準備級一級 (0 / 0)</div> -->
+
+  <!-- Quiz Title (Remains outside Header) -->
+  <!-- <div id="quiz-title">今日の問題</div> -->
+
   <!-- Main Content Area -->
   <main id="app-content">
-    <div class="card-container">
-        <div class="card">
-            <div class="card-front">
-                <!-- Show Definition on front -->
-                <p class="definition"></p>
-            </div>
-            <div class="card-back">
-                <!-- Show Word and Pinyin on back -->
-                <p class="word"></p>
-                <p class="pinyin"></p>
+    <!-- Quiz Container -->
+    <div id="quiz-container" class="hidden">
+
+      <!-- Question Area (Moved Before Progress Bar) -->
+      <div class="question-area">
+        <img src="img/elephant.png" alt="Elephant" id="quiz-elephant-icon" class="elephant-icon">
+        <div class="speech-bubble" id="quiz-bubble">
+          <p id="set-start-message">ここにセット開始メッセージが表示されます</p>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div id="progress-bar">
+        <div id="progress-bar-fill" style="width: 0%;"></div>
+      </div>
+
+      <!-- Actual Question Display Area (New) -->
+      <div id="actual-quiz-question-container">
+        <!-- Add Question Number Display -->
+        <p id="question-number-display"></p>
+        <p id="actual-quiz-question">ここに日本語の質問が表示されます</p>
+      </div>
+
+      <!-- Answer Area (Keep as is) -->
+      <div class="answer-area">
+        <input type="text" id="quiz-answer-input" placeholder="回答を入力 (華語)">
+      </div>
+
+      <!-- Quiz Controls (Modified Buttons) -->
+      <div class="quiz-controls">
+         <!-- Re-added text -->
+         <button id="prev-quiz-button" disabled><i class="bi bi-arrow-left-circle-fill"></i> </button>
+         <!-- Re-added text -->
+         <button id="next-quiz-button"><i class="bi bi-arrow-right-circle-fill"></i></button>
+         <!-- Check answers button remains the same -->
+         <button id="check-answers-button" class="hidden"><i class="bi bi-check2-square"></i> </button>
+      </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="hidden">
+        <p>読み込み中...</p>
+    </div>
+
+    <!-- End Message Area -->
+    <div id="end-message" class="hidden">
+        <!-- Messages like 'All words learned' or errors will appear here -->
+    </div>
+
+    <!-- Results Container (Initially Hidden) -->
+    <div id="results-container" class="hidden">
+        <div class="question-area">
+            <img src="img/elephant.png" alt="Elephant" id="results-elephant-icon" class="elephant-icon">
+            <div class="speech-bubble" id="results-bubble">
+              <p id="results-bubble-text">お疲れさまだゾウ！🐘 結果を見てほしいゾウ！</p>
             </div>
         </div>
+        <h4>結果</h4>
+        <ul id="results-list">
+            <!-- Results will be populated here by JS -->
+        </ul>
+        <div class="quiz-controls" style="margin-top: 5px;">
+             <button id="retry-set-button" class="hidden"><i class="bi bi-arrow-clockwise"></i> 再挑戦</button>
+             <button id="results-next-set-button" class="hidden">次のセットへ <i class="bi bi-arrow-right-short"></i></button>
+        </div>
     </div>
-    <div class="controls">
-        <button id="prev-button"><i class="bi bi-arrow-left-circle-fill"></i></button>
-        <button id="flip-button"><i class="bi bi-arrow-repeat"></i></button>
-        <button id="next-button"><i class="bi bi-arrow-right-circle-fill"></i></button>
-    </div>
+
   </main>
+
+  <!-- Modals (Initially Hidden) -->
+  <div id="history-modal" class="modal hidden">
+      <div class="modal-content">
+          <span class="close-button" id="close-history-modal">&times;</span>
+          <h3><i class="bi bi-clock-history"></i> 学習履歴</h3>
+          <div class="modal-body">
+            <p>選択中のレベルの履歴 (新しい順):</p>
+            <ul id="history-list">
+                <!-- History items will be populated here -->
+                <li>表示例: 2023-10-27 10:30 - セット 1 (8/10 正解)</li>
+            </ul>
+          </div>
+      </div>
+  </div>
+
+  <!-- Remaining Words Modal -->
+  <div id="remaining-modal" class="modal hidden">
+      <div class="modal-content">
+          <span class="close-button" id="close-remaining-modal">&times;</span>
+          <h2>残りの単語</h2>
+          <div class="remaining-words-section">
+              <h3>未正解</h3>
+              <ul id="incorrect-words-list" class="word-list">
+                  <!-- Incorrect words will be listed here -->
+              </ul>
+          </div>
+          <div class="remaining-words-section">
+              <h3>正解済み</h3>
+              <ul id="correct-words-list" class="word-list">
+                  <!-- Correct words will be listed here -->
+              </ul>
+          </div>
+      </div>
+  </div>
+
+  <!-- History Detail Modal -->
+  <div id="history-detail-modal" class="modal hidden">
+      <div class="modal-content">
+          <span class="close-button" id="close-history-detail-modal">&times;</span>
+          <h2 id="history-detail-title">履歴詳細</h2> <!-- Title can be updated dynamically -->
+          <ul id="history-detail-list" class="results-list"> <!-- Reuse results-list style -->
+              <!-- Detailed results will be listed here -->
+          </ul>
+      </div>
+  </div>
 
   <!-- Common JS -->
   <!-- The old common.js is now script.js -->
 
   <!-- App Specific JS -->
-  <script src="js/script.js"></script>
+  <script type="module" src="js/script.js"></script>
+
+  <!-- Footer (Commented Out) -->
+  <!--
+  <footer id="main-footer">
+    
+  </footer>
+  -->
 
 </body>
 </html> 

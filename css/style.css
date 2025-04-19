@@ -5,7 +5,8 @@
 =============================== */
 body {
   margin: 0;
-  padding: 0;
+  padding-top: 50px; /* Space for fixed header */
+  /* padding-bottom: 50px; */ /* Removed space for fixed footer */
   font-family: 'Noto Sans JP', 'Noto Sans TC', sans-serif;
   background-color: #F0F8FF;
   /* Default background/text colors are app-specific */
@@ -15,20 +16,36 @@ body {
    Common Header Styles
 =============================== */
 #main-header {
-  height: 50px;
+  height: 50px; /* Restore fixed height */
+  /* height: auto; */
   display: flex;
+  /* flex-wrap: wrap; */ /* Remove flex-wrap */
   justify-content: space-between;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 10px; /* Keep horizontal padding */
   box-sizing: border-box; /* Include padding in width/height */
   background-color: #000095;
   color: #FFFFFF;
-  /* Background color, text color are app-specific */
+  /* Add fixed positioning for header */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 100;
 }
+
+/* Remove adjustments for date inside header */
+/*
+#main-header > .logo-container,
+#main-header > .header-controls {
+    padding: 10px 0;
+}
+*/
 
 #main-header .logo-container {
   display: flex;
   align-items: center;
+  position: relative; /* Add relative positioning for bubble */
 }
 
 /* Style for the new header logo */
@@ -55,16 +72,101 @@ body {
 #main-header .header-controls {
   display: flex;
   align-items: center;
-  gap: 16px; /* Common gap, can be overridden */
+  gap: 15px; /* Adjust gap if needed */
 }
+
+/* Style for the level select dropdown in header */
+#level-select {
+    background-color: rgba(255, 255, 255, 0.9); /* Slightly transparent white */
+    color: #000095; /* Dark blue text */
+    border: none; /* Remove border */
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+/* Style for the header menu button */
+#header-menu-button {
+    font-size: 1.0rem; /* Adjust icon size */
+    color: #FFFFFF; /* White icon */
+    cursor: pointer;
+}
+
+/* Header Speech Bubble Styles (Adapted from reference) */
+.header-bubble {
+  position: absolute;
+  left: 45px; /* Position right of the icon (width + margin) */
+  top: 50%; /* Vertically center relative to logo container */
+  transform: translateY(-50%);
+  background-color: #fff;
+  color: #333;
+  border-radius: 8px;
+  padding: 7px 12px; /* Reduced vertical padding */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  z-index: 110; /* Ensure it's above header content */
+  white-space: nowrap;
+  font-size: 0.85rem;
+  border-color: transparent #fff transparent transparent;
+}
+
+.header-bubble.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Bubble triangle (LINE style for Header Bubble - Adjusted Top) */
+.header-bubble::before {
+  content: "";
+  position: absolute;
+  top: -3px; /* Move further up */
+  left: -10px; /* Adjusted for box-shadow method */
+  /* transform: translateY(-50%); */ /* Keep removed */
+  width: 20px;
+  height: 30px;
+  border-radius: 0 0 0 15px;
+  /* Use box-shadow for fill, match bubble background (#fff) */
+  box-shadow: -3px -15px 0 -7px #fff inset;
+  z-index: 1;
+  border: none;
+}
+
+/* Border effect for header bubble triangle (Restored) */
+.header-bubble::after {
+  content: "";
+  position: absolute;
+  top: -3px; /* Match ::before */
+  left: -11px; /* Slightly offset from ::before */
+  /* transform: translateY(-50%); */ /* Keep removed */
+  width: 20px;
+  height: 30px;
+  border-radius: 0 0 0 15px;
+   /* Use box-shadow for border, use a light gray */
+  box-shadow: -3px -15px 0 -7px #ccc inset;
+  z-index: 0;
+}
+
+/* Current Date Display Styles (Commented Out) */
+/*
+#current-date-display {
+  text-align: left; 
+  padding: 8px 20px;
+  margin-top: 0; 
+  margin-bottom: 10px; 
+  color: #000095; 
+  font-size: 0.9rem;
+  background-color: #FFFFFF; 
+}
+*/
 
 /* ===============================
    Common Main Content Area (Optional Base Styling)
 =============================== */
 #app-content {
-  padding: 20px; /* Add padding top/bottom/left/right */
-  /* Add common padding or margins if applicable across all apps */
-  /* Example: padding: 10px; */
+  padding: 20px;
 }
 
 /* ===============================
@@ -77,111 +179,853 @@ body {
 */
 
 /* ===============================
-   Word Card Styles
+   Quiz Styles (New)
 =============================== */
-.card-container {
-  perspective: 1000px; /* For 3D flip effect */
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.card {
-  width: 300px;
-  height: 180px;
-  position: relative;
-  transform-style: preserve-3d;
-  transition: transform 0.6s;
-  cursor: pointer; /* Indicate it's clickable */
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.card.flipped {
-  transform: rotateY(180deg);
-}
-
-.card-front,
-.card-back {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  backface-visibility: hidden;
+#quiz-container {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 500px; /* Keep max-width */
+  margin: 0 auto; /* Original centering margin */
+  padding: 0; /* Assuming original had no padding */
+  box-sizing: border-box; /* Keep consistent */
+}
+
+#results-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 500px; /* Match quiz container */
+  margin: 0 auto; /* Remove top margin to match quiz container */
+  padding: 0; /* Match quiz container (no padding) */
+  box-sizing: border-box; /* Match quiz container */
+}
+
+/* Removed old text progress style */
+/*
+#quiz-progress {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 15px;
+}
+*/
+
+/* Removed Set Info Display Styles */
+/*
+#set-info {
+    text-align: center;
+    padding: 5px 15px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    color: #333;
+    font-size: 0.9rem;
+    border: 1px solid #ccc;
+    border-radius: 25px;
+    background-color: #fff;
+    display: block;
+    max-width: 300px;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+}
+*/
+
+/* Progress Bar Styles (Simplified) */
+#progress-bar {
+  width: 100%;
+  height: 10px; /* Adjust height as needed */
+  background-color: #e0e0e0; /* Background of the bar */
+  border-radius: 5px; /* Rounded corners */
+  margin-top: 20px;
+  margin-bottom: 30px;
+  overflow: hidden; /* Hide overflow of the fill */
+  position: relative; /* Keep relative if needed for other pseudo-elements, otherwise optional */
+}
+
+#progress-bar-fill {
+  height: 100%;
+  background-color: #000095; /* Fill color (match theme) */
+  border-radius: 5px; /* Match parent border radius */
+  transition: width 0.3s ease; /* Smooth transition for width changes */
+  /* Initial width is set inline or by JS */
+}
+
+/* --- Remove/Comment Out Old Progress Bar Styles --- */
+
+/* Remove connecting line style */
+/*
+#progress-bar::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 11px;
+    right: 11px;
+    height: 2px;
+    background-color: #e0e0e0;
+    transform: translateY(-50%);
+    z-index: -1;
+}
+*/
+
+/* Remove segment styles */
+/*
+.progress-segment {
+  display: inline-flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
-  box-sizing: border-box;
-  border-radius: 10px;
-  text-align: center;
-}
-
-.card-front {
-  background-color: #FFFFFF; /* White front */
-  color: #333;
-}
-
-.card-back {
-  background-color: #E6F7FF; /* Light blue back */
-  color: #333;
-  transform: rotateY(180deg);
-}
-
-.card .pinyin {
-  font-size: 1rem;
-  color: #666;
-  margin-bottom: 5px;
-}
-
-.card .word {
-  font-family: 'Noto Sans TC', sans-serif; /* Use Traditional Chinese font */
-  font-size: 2.5rem;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  background-color: #e0e0e0;
+  color: #757575;
+  border-radius: 50%;
+  margin: 0 5px;
+  font-size: 0.75rem;
   font-weight: bold;
-  margin-bottom: 10px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  position: relative;
+  z-index: 1;
 }
 
-.card .definition {
-  /* Apply similar styles as .word, but adjust for Japanese */
-  font-family: 'Noto Sans JP', 'Noto Sans TC', sans-serif; /* Prioritize Japanese font */
-  font-size: 2.2rem; /* Increase font size further */
-  font-weight: bold;
-  margin: 0; /* Remove margin that might affect centering */
+.progress-segment.active {
+  background-color: #000095;
+  color: white;
 }
+*/
 
-.card .example-sentence {
-  font-size: 0.9rem;
-  color: #555;
-}
-
-/* ===============================
-   Control Button Styles
-=============================== */
-.controls {
+/* Styles for Question Area */
+.question-area {
+  width: 100%;
   display: flex;
-  justify-content: center;
-  gap: 15px;
+  align-items: flex-start;
+  position: relative;
+  margin-bottom: 10px;
+  padding: 0 10px;
+  box-sizing: border-box;
 }
 
-.controls button {
+/* Use class selector for the icon (Applies to both) */
+.elephant-icon {
+  width: 50px;
+  height: 50px;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+/* Speech Bubble Styles (Common style for both quiz and results) */
+.speech-bubble {
+  position: relative;
+  background-color: #fff;
+  color: #333;
+  border-radius: 10px;
+  padding: 10px 15px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  flex-grow: 1;
+  margin-left: 5px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #eee;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+/* Style for the text inside BOTH bubbles (Unified margin) */
+#set-start-message,
+#results-bubble-text {
+    margin: 0; /* Ensure no default paragraph margin */
+    text-align: center;
+}
+
+/* Bubble triangle (Common style for both) */
+.speech-bubble::before {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: -10px;
+  width: 20px;
+  height: 30px;
+  border-radius: 0 0 0 15px;
+  box-shadow: -3px -15px 0 -7px #fff inset;
+  z-index: 1;
+}
+.speech-bubble::after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: -11px;
+  width: 20px;
+  height: 30px;
+  border-radius: 0 0 0 15px;
+  box-shadow: -3px -15px 0 -7px #eee inset;
+  z-index: 0;
+}
+
+/* Styles for Actual Question Display (New) */
+#actual-quiz-question-container {
+    width: 100%;
+    padding: 25px 10px;
+    margin-bottom: 15px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid #eee;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative; /* Add relative positioning for absolute child */
+}
+
+/* Style for Question Number (New) */
+#question-number-display {
+    margin: 0 0 8px 5px;
+    font-size: 0.9rem;
+    color: #555;
+    text-align: left;
+    font-weight: bold;
+    /* Position absolutely to keep it top-left within the flex container */
+    position: absolute;
+    top: 10px; /* Adjust as needed */
+    left: 10px; /* Adjust as needed */
+}
+
+#actual-quiz-question {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #333;
+    text-align: center;
+    /* No specific width needed for flex centering */
+    /* width: 100%; */
+}
+
+/* Answer Area Styles (Reverted/Original) */
+.answer-area {
+  width: 100%;
+  margin-top: 20px;
+  margin-bottom: 20px; /* Reverted */
+}
+
+#quiz-answer-input {
+  width: 100%;
+  padding: 10px 15px; /* Reverted */
+  font-size: 1.1rem; /* Reverted */
+  border: 1px solid #ccc; /* Reverted */
+  border-radius: 5px; /* Reverted */
+  box-sizing: border-box;
+}
+
+/* Quiz Controls Styles (Reverted/Original) */
+.quiz-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px; /* Reverted */
+    width: 100%;
+}
+
+/* Control Button Styles (Reverted/Original with Text) */
+#prev-quiz-button,
+#next-quiz-button {
+  padding: 10px 20px; /* Reverted */
+  /* width: 45px; */ /* Removed fixed width */
+  /* height: 45px; */ /* Removed fixed height */
+  font-size: 1rem; /* Reverted */
+  font-family: 'Noto Sans JP', sans-serif;
+  color: white;
+  border: none;
+  border-radius: 5px; /* Reverted (Rectangular) */
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px; /* Reverted */
+}
+
+#prev-quiz-button {
+    background-color: #6c757d;
+    margin-right: 0; /* Remove specific margin if gap handles it */
+}
+#next-quiz-button {
+    background-color: #000095;
+}
+
+#prev-quiz-button:hover { background-color: #5a6268; }
+#next-quiz-button:hover { background-color: #0000C0; }
+
+#prev-quiz-button:disabled,
+#next-quiz-button:disabled {
+    background-color: #ccc;
+    cursor: default;
+}
+
+/* Icons inside reverted buttons */
+#prev-quiz-button i,
+#next-quiz-button i {
+  font-size: 1.2em; /* Adjust if needed */
+}
+
+/* Check answers button style (Keep as is) */
+#check-answers-button {
   padding: 10px 20px;
   font-size: 1rem;
   font-family: 'Noto Sans JP', sans-serif;
-  background-color: #000095; /* Match header */
+  background-color: #000095;
+  color: white;
+  border: none;
+  border-radius: 5px; /* Keep rectangular */
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  /* margin-left: 10px; */ /* Gap handles spacing */
+}
+
+#check-answers-button:hover { background-color: #0000C0; }
+#check-answers-button:disabled { background-color: #ccc; cursor: default; }
+#check-answers-button i { font-size: 1.2em; }
+
+/* Results Button Styles (Keep as is) */
+#results-next-set-button,
+#retry-set-button {
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-family: 'Noto Sans JP', sans-serif;
+  background-color: #000095;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  display: inline-flex; /* Align icon and text */
+  display: inline-flex;
   align-items: center;
-  gap: 5px; /* Space between icon and text */
+  justify-content: center;
+  gap: 5px;
+  /* margin-left: 10px; */ /* Gap handles spacing in results container */
 }
 
-.controls button:hover {
-  background-color: #0000C0; /* Slightly lighter blue on hover */
+#results-next-set-button:hover, #retry-set-button:hover { background-color: #0000C0; }
+#results-next-set-button:disabled, #retry-set-button:disabled { background-color: #ccc; cursor: default; }
+#results-next-set-button i, #retry-set-button i { font-size: 1.2em; }
+
+/* Loading Indicator Styles */
+#loading-indicator {
+    text-align: center;
+    padding: 20px;
+    font-size: 1.1rem;
+    color: #555;
 }
 
-.controls button i {
-  font-size: 1.2em; /* Make icons slightly larger */
+/* End Message Styles */
+#end-message {
+    text-align: center;
+    padding: 20px;
+    margin: 20px auto;
+    max-width: 500px;
+    border-radius: 8px;
+    background-color: #e7f3ff;
+    border: 1px solid #b3d7ff;
+    color: #004085;
+    font-weight: bold;
+}
+
+/* Results Container Styles */
+#results-container {
+  /* ... existing container styles ... */
+}
+
+/* Adjustments for reused elements within results */
+#results-container .question-area {
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+/* Results List Styles */
+#results-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px 0;
+    width: 100%;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Result Item (li) Styles */
+#results-list li.result-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center; /* Vertically align items */
+    gap: 10px; /* Add gap between elements */
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+}
+
+#results-list li.result-item:last-child {
+    border-bottom: none;
+}
+
+/* Style based on correctness */
+#results-list li.result-item.correct {
+    /* background-color: #e8f5e9; */ /* Light green background (optional) */
+    border-left: 5px solid #4CAF50; /* Green left border */
+    padding-left: 10px; /* Adjust padding */
+}
+
+#results-list li.result-item.incorrect {
+    /* background-color: #ffebee; */ /* Light red background (optional) */
+    border-left: 5px solid #F44336; /* Red left border */
+    padding-left: 10px; /* Adjust padding */
+}
+
+
+/* Icon inside result item */
+.result-icon {
+    font-size: 1.2rem; /* Adjust icon size */
+    flex-shrink: 0; /* Prevent icon shrinking */
+}
+
+/* Container for text details */
+.result-text-details {
+    flex-grow: 1; /* Take remaining space */
+    display: flex;
+    flex-direction: column; /* Stack question/answers */
+    gap: 2px;
+}
+
+.result-question {
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.result-answer-line {
+    font-size: 0.85rem;
+    color: #777;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.result-user-answer {
+    /* font-style: italic; */ /* Optional styling */
+}
+
+.result-separator {
+    font-weight: bold;
+}
+
+.result-correct-answer {
+    font-weight: bold;
+    color: #333;
+}
+
+.result-pinyin {
+    color: #888;
+    font-size: 0.8rem;
+    margin-left: 5px;
+}
+
+/* Specific styling for incorrect user answers */
+.result-item.incorrect .result-user-answer {
+    text-decoration: line-through; /* Strike through incorrect answer */
+    color: #d32f2f; /* Dim red color */
+}
+
+
+/* Ensure results buttons are centered */
+#results-container .quiz-controls {
+    justify-content: center;
+    width: 100%; /* Ensure centering within container */
+    gap: 15px; /* Add gap between retry/next buttons */
+}
+
+/* Utility class for hiding elements */
+.hidden {
+  display: none !important;
+}
+
+/* ===============================
+   Footer Styles (Keep Commented Out)
+=============================== */
+/*
+#main-footer {
+  height: 50px;
+  background-color: #000095; 
+  color: #FFFFFF;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 100;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: flex-end; 
+  align-items: center;
+  padding: 0 10px; 
+}
+*/
+
+/* Removed styles for controls inside footer */
+/*
+.footer-controls { ... }
+#level-select { ... }
+#footer-menu-button { ... }
+*/
+
+/* Quiz Question Bubble Styles */
+/* Targeting specifically the quiz bubble for the LINE style triangle */
+/* (These styles are duplicated below, removing this block) */
+/*
+#quiz-bubble::before { 
+  content: "";
+  position: absolute;
+  top: 15px; 
+  left: -10px; 
+  width: 20px;
+  height: 30px;
+  border-radius: 0 0 0 15px;
+  box-shadow: -3px -15px 0 -7px #fff inset;
+  z-index: 1;
+  border: none;
+}
+
+#quiz-bubble::after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: -11px; 
+  width: 20px;
+  height: 30px;
+  border-radius: 0 0 0 15px;
+  box-shadow: -3px -15px 0 -7px #eee inset;
+  z-index: 0;
+} 
+*/
+
+/* Ensure results bubble text alignment is center */
+#results-bubble-text {
+    margin: 0;
+    text-align: center;
+}
+
+/* Explicitly apply the same styles to results elements using higher specificity */
+#results-container .elephant-icon {
+  /* Same as .elephant-icon */
+  width: 50px;
+  height: 50px;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+#results-container .speech-bubble {
+  /* Same as .speech-bubble */
+  position: relative;
+  background-color: #fff;
+  color: #333;
+  border-radius: 10px;
+  padding: 10px 15px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  flex-grow: 1;
+  margin-left: 5px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #eee;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+#results-container .speech-bubble::before {
+  /* Same as .speech-bubble::before */
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: -10px;
+  width: 20px;
+  height: 30px;
+  border-radius: 0 0 0 15px;
+  box-shadow: -3px -15px 0 -7px #fff inset;
+  z-index: 1;
+}
+
+#results-container .speech-bubble::after {
+  /* Same as .speech-bubble::after */
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: -11px;
+  width: 20px;
+  height: 30px;
+  border-radius: 0 0 0 15px;
+  box-shadow: -3px -15px 0 -7px #eee inset;
+  z-index: 0;
+}
+
+/* ... rest of the styles ... */
+
+#results-container h4 {
+    margin-top: 8px;
+    margin-bottom: 10px;
+    color: #333;
+    text-align: center;
+    width: 100%;
+}
+
+/* Header Menu Styles */
+.header-menu {
+  position: absolute;
+  top: 50px; /* Position below the header */
+  right: 10px; /* Align to the right */
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  z-index: 101; /* Ensure it's above header content */
+  min-width: 150px;
+}
+
+.header-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 5px 0;
+}
+
+.header-menu li {
+  padding: 8px 15px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-menu li:hover {
+  background-color: #f0f0f0;
+}
+
+.header-menu i {
+  color: #555;
+}
+
+.header-menu ul li i {
+    margin-right: 8px;
+}
+
+/* Style for the separator in the menu */
+.header-menu ul li.menu-separator {
+    padding: 0;
+    margin: 5px 0;
+}
+
+.header-menu ul li.menu-separator hr {
+    border: 0;
+    border-top: 1px solid #ccc;
+    margin: 0;
+}
+
+/* Style for the user email display */
+.header-menu ul li.user-email-display {
+    color: #666;
+    font-size: 0.8em;
+    padding-top: 5px; /* Add some space above */
+    text-align: center;
+    cursor: default; /* Not clickable */
+}
+
+.header-menu ul li.user-email-display:hover {
+    background-color: transparent; /* No hover effect */
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed; /* Stay in place */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgba(0, 0, 0, 0.5); /* Black w/ opacity */
+  z-index: 1000; /* Sit on top */
+  display: flex; /* Use flexbox for centering */
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: auto; /* Auto margin for centering (redundant with flex) */
+  padding: 25px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  width: 80%; /* Could be more specific */
+  max-width: 600px;
+  position: relative; /* For positioning the close button */
+  max-height: 85vh; /* Limit height */
+  display: flex; /* Use flex for layout */
+  flex-direction: column;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #000095;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.modal-body {
+    overflow-y: auto; /* Allow body content to scroll */
+    flex-grow: 1; /* Take remaining height */
+}
+
+.close-button {
+  color: #aaa;
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 28px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: black;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* History List Styles */
+#history-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#history-list li {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+#history-list li:last-child {
+    border-bottom: none;
+}
+
+/* Style for clickable history items */
+#history-list li.history-item-clickable {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#history-list li.history-item-clickable:hover {
+    background-color: #f0f0f0;
+}
+
+/* Styles for Remaining Words Modal */
+.remaining-words-section {
+    margin-bottom: 15px;
+}
+
+.remaining-words-section h3 {
+    margin-bottom: 8px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 4px;
+    font-size: 1.1em;
+}
+
+.word-list {
+    list-style: none;
+    padding-left: 0;
+    max-height: 200px; /* Limit height if needed */
+    overflow-y: auto; /* Add scrollbar if content overflows */
+}
+
+.word-list li {
+    padding: 4px 0;
+}
+
+.word-list li b {
+    font-weight: bold; /* Ensure bold text is actually bold */
+}
+
+.word-list li .count {
+    font-size: 0.8em;
+    color: #777;
+    margin-left: 5px;
+}
+
+/* Ensure results list style applies to history detail modal */
+.results-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 60vh; /* Limit height */
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+/* Remaining Words Modal Styles */
+#remaining-modal h4 {
+    margin-top: 10px;
+    margin-bottom: 8px;
+    font-size: 1rem;
+    color: #444;
+}
+
+#incorrect-words-list,
+#correct-words-list,
+#unknown-words-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 15px 0;
+}
+
+#incorrect-words-list li,
+#correct-words-list li,
+#unknown-words-list li {
+    padding: 4px 0;
+    font-size: 0.9rem;
+}
+
+/* Style for incorrect count */
+#incorrect-words-list b {
+    font-weight: bold; /* Already bold, but ensures it */
+}
+#incorrect-words-list span.count {
+    font-size: 0.8em;
+    color: #888;
+    margin-left: 5px;
+}
+
+
+/* Utility class (already defined but ensure it exists) */
+.hidden {
+  display: none !important;
+}
+
+/* ... rest of styles ... */
+
+/* Ensure the set start message inside the bubble is displayed */
+#set-start-message {
+    display: block !important; /* FORCE display, overriding other rules */
+    margin: 0; /* Remove default paragraph margins if needed */
+    padding: 5px; /* Add some padding if needed */
+}
+
+/* Progress Bar Styles */
+#progress-bar {
+    /* ... existing styles ... */
 } 

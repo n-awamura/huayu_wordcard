@@ -81,11 +81,15 @@ let quizResults = [];
 let currentUserId = null;
 let userLevelProgress = {};
 let isLoadingProgress = true;
+let delayedCarryOverWords = []; // <<< ADDED: Stores { word: wordObject, targetSet: number }
 
 // Swipe tracking variables
 let touchStartX = 0;
 let touchEndX = 0;
 const swipeThreshold = 50;
+
+// --- Global flag for level change ---
+let levelChangedFlag = false;
 
 // --- Utility Functions ---
 function showLoading() {
@@ -117,6 +121,26 @@ function displayError(message, isCritical = false) {
          if (progressBar) progressBar.classList.add('hidden'); // Use progressBar instead of progressElement
      }
 }
+
+// --- ADDED: Function to shuffle an array (Fisher-Yates algorithm) ---
+function shuffleArray(array) {
+  let currentIndex = array.length, randomIndex;
+
+  // While there remain elements to shuffle.
+  while (currentIndex > 0) {
+
+    // Pick a remaining element.
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+
+  return array;
+}
+// --- End Added shuffleArray ---
 
 // --- Helper function for answer checking ---
 function isAnswerCorrect(userAnswer, correctAnswer) {
@@ -186,29 +210,33 @@ async function startNewQuiz() {
         console.log("DEBUG: startNewQuiz returning early because isLoading is true.");
         return;
     }
-    // --- Log the level it THINKS it should load ---
     const levelToLoad = levelSelect ? levelSelect.value : 'unknown';
     console.log(`DEBUG: startNewQuiz intends to load level: ${levelToLoad}`);
-    // ----------------------------------------------
 
-    console.log(`Starting set ${currentSet}...`);
     isLoading = true;
     showLoading();
     isQuizComplete = false;
 
-    // --- UI Reset ---
-    quizContainer.classList.remove('hidden');
-    resultsContainer.classList.add('hidden');
-    endMessageElement.classList.add('hidden');
-    answerInputElement.value = '';
-    answerInputElement.disabled = false;
-    nextQuizButton.classList.remove('hidden');
-    checkAnswersButton.classList.add('hidden');
-    resultsNextSetButton.classList.add('hidden');
-    retrySetButton.classList.add('hidden');
+    // --- Explicit UI Reset ---
+    if (quizContainer) quizContainer.classList.remove('hidden');
+    if (resultsContainer) resultsContainer.classList.add('hidden');
+    if (endMessageElement) endMessageElement.classList.add('hidden');
+    if (answerInputElement) answerInputElement.disabled = false;
+    if (nextQuizButton) nextQuizButton.classList.remove('hidden');
+    if (checkAnswersButton) checkAnswersButton.classList.add('hidden');
     if (progressBar) progressBar.classList.remove('hidden');
     const resultsBubble = document.getElementById('results-bubble');
     if (resultsBubble) resultsBubble.classList.add('hidden');
+    // ------------------------
+
+    // --- Clear delayed carry-over words if starting set 1 or if level just changed ---
+    if (currentSet === 1 || levelChangedFlag) {
+        console.log(`Clearing delayedCarryOverWords because currentSet=${currentSet} or level changed.`);
+        delayedCarryOverWords = []; // Clear the list
+        levelChangedFlag = false;
+    }
+    console.log("DEBUG: Delayed carry-over words at start of new set:", delayedCarryOverWords.map(item => `(${item.word.語彙} for set ${item.targetSet})`));
+    // ------------------------------------------------------------------------
 
     // --- State Reset ---
     currentQuizIndex = 0;
@@ -217,12 +245,12 @@ async function startNewQuiz() {
     const currentLevelFile = levelSelect.value;
     currentLevelName = levelSelect.options[levelSelect.selectedIndex].text;
 
-    // Fetch words
-    console.log(`DEBUG: Calling fetchWordsForLevel with: ${currentLevelFile}`); // Log before fetch
-    allWordsInLevel = await fetchWordsForLevel(currentLevelFile);
-    console.log(`DEBUG: fetchWordsForLevel returned. allWordsInLevel length: ${allWordsInLevel?.length || 0}. First word (if any):`, allWordsInLevel?.[0]?.語彙);
-    currentLevelTotalWords = allWordsInLevel.length;
-
+    // Fetch all words if necessary
+    if (allWordsInLevel.length === 0) {
+        console.log("DEBUG: allWordsInLevel is empty, fetching...");
+        allWordsInLevel = await fetchWordsForLevel(currentLevelFile);
+        currentLevelTotalWords = allWordsInLevel.length;
+    }
     if (currentLevelTotalWords === 0) {
         console.error("No words loaded for the level.");
         // displayError is already called in fetchWordsForLevel on error
@@ -233,23 +261,54 @@ async function startNewQuiz() {
         return;
     }
 
-    // Select words for the current set
+    // --- Generate Word List for the Set ---
+    // 1. Select Words for Review from delayedCarryOverWords
+    const reviewWords = [];
+    const indicesToRemoveFromDelayed = [];
+    const urgentReviewThreshold = wordsPerSet * 1.5;
+    const theoreticalStartIndex = (currentSet - 1) * wordsPerSet;
+    const remainingNewWordCount = Math.max(0, currentLevelTotalWords - theoreticalStartIndex);
+    const isReviewUrgent = remainingNewWordCount < urgentReviewThreshold;
+    console.log(`DEBUG: Remaining new words: ${remainingNewWordCount}. Urgent review needed? ${isReviewUrgent}`);
+
+    delayedCarryOverWords.forEach((item, index) => {
+        if (item.targetSet <= currentSet || isReviewUrgent) {
+            reviewWords.push(item.word);
+            indicesToRemoveFromDelayed.push(index);
+            console.log(`DEBUG: Selecting word '${item.word.語彙}' for review (target: ${item.targetSet}, current: ${currentSet}, urgent: ${isReviewUrgent})`);
+        }
+    });
+
+    // 2. Get New Words for the current set number
     const startIndex = (currentSet - 1) * wordsPerSet;
     const endIndex = startIndex + wordsPerSet;
-    quizWords = allWordsInLevel.slice(startIndex, endIndex);
+    const newWords = allWordsInLevel.slice(startIndex, endIndex);
+    console.log(`DEBUG: New words slice (indices ${startIndex}-${endIndex-1}):`, newWords.map(w=>w.語彙));
 
-    console.log(`Set ${currentSet}: Selected indices ${startIndex} to ${endIndex - 1}. Got ${quizWords.length} words.`);
+    // 3. Combine review words and new words, ensuring uniqueness
+    const combinedWordsMap = new Map();
+    reviewWords.forEach(word => combinedWordsMap.set(word.語彙, word));
+    newWords.forEach(word => combinedWordsMap.set(word.語彙, word));
+    let combinedWords = Array.from(combinedWordsMap.values());
+
+    // 4. Shuffle the combined list
+    quizWords = shuffleArray(combinedWords);
+    console.log(`DEBUG: Final quizWords for set ${currentSet} (count: ${quizWords.length}):`, quizWords.map(w=>w.語彙));
+
+    // 5. Remove selected review words from the delayed list (iterate backwards)
+    indicesToRemoveFromDelayed.sort((a, b) => b - a); // Sort indices descending
+    indicesToRemoveFromDelayed.forEach(index => {
+        delayedCarryOverWords.splice(index, 1);
+    });
+    console.log("DEBUG: Delayed carry-over words after selection:", delayedCarryOverWords.map(item => `(${item.word.語彙} for set ${item.targetSet})`));
+    // --- End Generate Word List ---
 
     if (quizWords.length === 0) {
-        // This happens if startIndex is beyond the total number of words
-        console.log(`No more words available for set ${currentSet} in this level.`);
-        // Display end message for the level
-        displayError(`「${currentLevelName}」の単語は全て出題しました！🎉`, false); // Not a critical error
-        hideLoading();
+        console.log("All words for this level seem to be completed or no words found for this set index.");
+        displayError(`レベル「${currentLevelName}」の単語を全て学習しました！`, false);
+        // Handle completion state
         isLoading = false;
-        quizContainer.classList.add('hidden');
-        if (progressBar) progressBar.classList.add('hidden');
-        // Potentially disable level selector or show a global completion message?
+        hideLoading();
         return;
     }
 
@@ -381,25 +440,29 @@ function prevQuiz() {
 }
 
 function recordCurrentAnswer() {
-    if (currentQuizIndex < quizWords.length) {
-        const currentWord = quizWords[currentQuizIndex];
+    if (currentQuizIndex < 0 || currentQuizIndex >= quizWords.length) return;
 
-        // Simplified check - Ensure essential display properties exist
-        if (!currentWord || currentWord.和訳 === undefined || currentWord.語彙 === undefined || currentWord.拼音 === undefined) {
-             console.error("RECORD_ANSWER_ERROR: Invalid word data for display/checking at index:", currentQuizIndex, "Data:", currentWord);
-             return; // Skip recording if essential data is missing
-        }
+    const currentWord = quizWords[currentQuizIndex];
+    const userAnswer = answerInputElement ? answerInputElement.value.trim() : '';
 
-        const userAnswer = answerInputElement.value.trim();
-        quizResults[currentQuizIndex] = {
-            question: currentWord.和訳,
+    // Find if result already exists
+    let resultEntry = quizResults.find(r => r.wordObject?.語彙 === currentWord.語彙);
+
+    if (resultEntry) {
+        resultEntry.userAnswer = userAnswer;
+        resultEntry.isCorrect = null; // Reset correctness check status
+    } else {
+        quizResults.push({
+            // Store the whole object!
+            wordObject: currentWord,
+            question: currentWord.和訳, // Or other property based on quiz direction
             userAnswer: userAnswer,
             correctAnswer: currentWord.語彙,
             pinyin: currentWord.拼音,
             isCorrect: null
-        };
-        console.log(`Recorded answer for index ${currentQuizIndex}:`, quizResults[currentQuizIndex]);
+        });
     }
+    console.log(`Recorded answer for index ${currentQuizIndex}:`, quizResults[quizResults.length - 1]);
 }
 
 function handleQuizCompletion() {
@@ -433,24 +496,45 @@ function checkAnswers() {
     }
 
     correctAnswers = 0;
+    // const incorrectWordsFromThisSet = []; // No longer needed directly here
+
     quizResults.forEach(result => {
-         if (result) {
-             // Use the new helper function for checking
+         if (result && result.wordObject) { // Check if wordObject exists
              result.isCorrect = isAnswerCorrect(result.userAnswer, result.correctAnswer);
+             const wordVocab = result.wordObject.語彙;
+
              if (result.isCorrect) {
                  correctAnswers++;
+                 // --- Remove from delayed list if answered correctly ---
+                 const indexInDelayed = delayedCarryOverWords.findIndex(item => item.word.語彙 === wordVocab);
+                 if (indexInDelayed !== -1) {
+                     console.log(`DEBUG: Word '${wordVocab}' answered correctly, removing from delayed review.`);
+                     delayedCarryOverWords.splice(indexInDelayed, 1);
+                 }
+                 // ----------------------------------------------------
+             } else {
+                 // --- Add to delayed list if answered incorrectly ---
+                 const isAlreadyDelayed = delayedCarryOverWords.some(item => item.word.語彙 === wordVocab);
+                 if (!isAlreadyDelayed) {
+                     const targetSet = currentSet + 2;
+                     console.log(`DEBUG: Word '${wordVocab}' answered incorrectly, scheduling for review in/after set ${targetSet}.`);
+                     delayedCarryOverWords.push({ word: result.wordObject, targetSet: targetSet });
+                 } else {
+                     console.log(`DEBUG: Word '${wordVocab}' answered incorrectly, but already scheduled for review. No change to schedule.`);
+                 }
+                 // ----------------------------------------------------
              }
          } else {
-             console.warn("Missing result during checking.");
+             console.warn("Missing result or wordObject during checking.");
          }
     });
 
     console.log(`Checking complete. Correct: ${correctAnswers}/${quizWords.length}`);
+    console.log("DEBUG: Delayed carry-over words after checking:", delayedCarryOverWords.map(item => `(${item.word.語彙} for set ${item.targetSet})`));
 
-    // --- Save progress after checking ---
+    // --- Save progress --- 
     const currentLevelId = levelSelect.value;
     saveProgressToFirestore(currentLevelId, currentSet, quizResults);
-
     displayResults();
 }
 
@@ -513,8 +597,9 @@ function displayResults() {
 }
 
 function retryCurrentSet() {
-    console.log("Retrying current set...");
-    startNewQuiz(); // Re-starts the same set
+    console.log(`Retrying current set: ${currentSet}`);
+    delayedCarryOverWords = []; // Clear delayed carry-overs
+    startNewQuiz();
 }
 
 // --- Swipe Handlers ---
@@ -989,6 +1074,8 @@ async function initializeLevelProgress(levelId) {
             console.log(`Cleared local progress for level: ${levelId}`);
         }
 
+        // Clear delayed carry-overs when initializing
+        delayedCarryOverWords = [];
         // Reset currentSet if the initialized level was the current one
         if (levelSelect && levelSelect.value === levelId) {
             currentSet = 1;
@@ -1271,14 +1358,17 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
+            // --- Set flag to clear delayed carry-overs ---
+            levelChangedFlag = true; 
+            // -------------------------------------
+
             const levelData = userLevelProgress[newLevelId] || { lastCompletedSet: 0 };
             currentSet = (levelData.lastCompletedSet || 0) + 1;
             console.log(`DEBUG: Level change - Setting starting set for new level ${newLevelId} to: ${currentSet}`);
-            allWordsInLevel = [];
+            allWordsInLevel = []; // Clear word list for new level
             currentLevelTotalWords = 0;
             console.log(`DEBUG: Level change - About to call startNewQuiz for level: ${newLevelId}`);
-            await startNewQuiz(); // Wait for quiz start to potentially finish fetching
-            // Save the newly selected level AFTER starting the quiz (or attempting to)
+            await startNewQuiz(); // This will clear delayedCarryOverWords due to the flag
             saveLastUsedLevel(newLevelId);
         });
         console.log("Level select listener attached.");

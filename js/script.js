@@ -142,6 +142,28 @@ function shuffleArray(array) {
 }
 // --- End Added shuffleArray ---
 
+// --- ADDED: Calculate remaining words in the current level ---
+function calculateRemainingWordsInLevel(levelId) {
+    if (!levelId || !userLevelProgress || !allWordsInLevel || allWordsInLevel.length === 0) {
+        console.warn("Cannot calculate remaining words: Missing data (levelId, progress, allWords).");
+        return "?"; // Return placeholder if data is missing
+    }
+    const levelData = userLevelProgress[levelId] || { wordStats: {} };
+    const wordStats = levelData.wordStats;
+    let remainingCount = 0;
+    allWordsInLevel.forEach(wordObj => {
+        if (wordObj && wordObj.語彙) {
+            const stats = wordStats[wordObj.語彙];
+            if (!stats || stats.status !== 'correct') {
+                remainingCount++;
+            }
+        }
+    });
+    console.log(`DEBUG: Calculated remaining words for ${levelId}: ${remainingCount}`);
+    return remainingCount;
+}
+// --- End Added calculateRemainingWordsInLevel ---
+
 // --- Helper function for answer checking ---
 function isAnswerCorrect(userAnswer, correctAnswer) {
     const userAnswerNorm = userAnswer.trim().toLowerCase();
@@ -227,6 +249,9 @@ async function startNewQuiz() {
     if (progressBar) progressBar.classList.remove('hidden');
     const resultsBubble = document.getElementById('results-bubble');
     if (resultsBubble) resultsBubble.classList.add('hidden');
+    // Ensure quiz bubble and its content are shown
+    if (quizBubble) quizBubble.classList.remove('hidden'); // Show the quiz bubble
+    if (setStartMessageElement) setStartMessageElement.classList.remove('hidden'); // Show the message element inside
     // ------------------------
 
     // --- Clear delayed carry-over words if starting set 1 or if level just changed ---
@@ -260,6 +285,10 @@ async function startNewQuiz() {
         if (progressBar) progressBar.classList.add('hidden');
         return;
     }
+
+    // --- Calculate remaining words AFTER ensuring allWordsInLevel is populated ---
+    const remainingWords = calculateRemainingWordsInLevel(levelToLoad);
+    // --------------------------------------------------------------------------
 
     // --- Generate Word List for the Set ---
     // 1. Select Words for Review from delayedCarryOverWords
@@ -318,7 +347,7 @@ async function startNewQuiz() {
 
     // --- Display Set Start Message in Bubble ---
     if (setStartMessageElement) {
-        setStartMessageElement.innerHTML = `第 ${currentSet} セットだゾウ！🐘<br>がんばるゾウ！`;
+        setStartMessageElement.innerHTML = `第 ${currentSet} セットだゾウ！🐘<br>がんばるゾウ！<br><br>${currentLevelName}はあと ${remainingWords} 問！`;
         console.log(`Set start message displayed for set ${currentSet}`);
         // --- Debug Logs Added ---
         console.log("DEBUG: setStartMessageElement content:", setStartMessageElement.innerHTML);
@@ -368,7 +397,7 @@ function displayQuiz() {
 
     // --- Display Question Number ---
     if (questionNumberDisplayElement) {
-        questionNumberDisplayElement.textContent = `Q${currentQuestionNum}`;
+        questionNumberDisplayElement.textContent = `問${currentQuestionNum}`;
     } else {
         console.warn("#question-number-display element not found!");
     }
@@ -550,15 +579,21 @@ function displayResults() {
     const potentialNextSetStartIndex = currentSet * wordsPerSet;
     const isLevelComplete = potentialNextSetStartIndex >= currentLevelTotalWords;
 
+    // --- Calculate remaining words AFTER grading ---
+    const remainingWordsAfterSet = calculateRemainingWordsInLevel(levelSelect.value);
+    // ---------------------------------------------
+
     if (isLevelComplete) {
         resultsNextSetButton.disabled = true;
         resultsNextSetButton.textContent = "レベル完了！";
         resultsMessage = `すごいゾウ！🐘<br>「${currentLevelName}」を全部終えたんだゾウ！`;
-        // Progress is now saved in checkAnswers
     } else {
         resultsNextSetButton.disabled = false;
         resultsNextSetButton.textContent = "次のセットへ →";
     }
+
+    // Add remaining count to the message
+    resultsMessage += `<br><br>${currentLevelName}はあと ${remainingWordsAfterSet} 問！`;
 
     if (resultsBubbleTextElement) {
         resultsBubbleTextElement.innerHTML = resultsMessage;

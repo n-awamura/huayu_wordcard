@@ -320,24 +320,26 @@ body {
   background-color: #fff;
   color: #333;
   border-radius: 10px;
-  padding: 10px 15px;
+  padding: 15px 15px; /* <<< Increased vertical padding slightly */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   flex-grow: 1;
   margin-left: 5px;
   min-height: 40px;
   display: flex;
-  align-items: center;
   justify-content: center;
   border: 1px solid #eee;
   font-size: 0.9rem;
   font-weight: bold;
+  line-height: 1.5;
 }
 
-/* Style for the text inside BOTH bubbles (Unified margin) */
+/* Style for the text inside BOTH bubbles */
 #set-start-message,
 #results-bubble-text {
-    margin: 0; /* Ensure no default paragraph margin */
+    margin: 0;
     text-align: center;
+    display: block;
+    width: 100%;
 }
 
 /* Bubble triangle (Common style for both) */
@@ -730,13 +732,12 @@ body {
   background-color: #fff;
   color: #333;
   border-radius: 10px;
-  padding: 10px 15px;
+  padding: 15px 15px; /* <<< Increased vertical padding slightly */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   flex-grow: 1;
   margin-left: 5px;
   min-height: 40px;
   display: flex;
-  align-items: center;
   justify-content: center;
   border: 1px solid #eee;
   font-size: 0.9rem;
@@ -1018,14 +1019,9 @@ body {
 
 /* ... rest of styles ... */
 
-/* Ensure the set start message inside the bubble is displayed */
-#set-start-message {
-    display: block !important; /* FORCE display, overriding other rules */
-    margin: 0; /* Remove default paragraph margins if needed */
-    padding: 5px; /* Add some padding if needed */
-}
-
 /* Progress Bar Styles */
 #progress-bar {
     /* ... existing styles ... */
-} 
+}
+
+/* ... Rest of the CSS ... */ 

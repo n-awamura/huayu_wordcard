@@ -238,7 +238,7 @@ body {
   height: 10px; /* Adjust height as needed */
   background-color: #e0e0e0; /* Background of the bar */
   border-radius: 5px; /* Rounded corners */
-  margin-top: 20px;
+  margin-top: 50px;
   margin-bottom: 30px;
   overflow: hidden; /* Hide overflow of the fill */
   position: relative; /* Keep relative if needed for other pseudo-elements, otherwise optional */

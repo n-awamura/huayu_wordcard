@@ -78,7 +78,8 @@ let allWordsInLevel = [];
 let currentLevelTotalWords = 0;
 let quizWords = [];
 let currentQuizIndex = 0;
-let currentLevelName = '';
+let currentLevelId = '';
+let currentLevelDisplayName = '';
 let currentSet = 1;
 const wordsPerSet = 10;
 let correctAnswers = 0;
@@ -154,20 +155,27 @@ function shuffleArray(array) {
 function calculateRemainingWordsInLevel(levelId) {
     if (!levelId || !userLevelProgress || !allWordsInLevel || allWordsInLevel.length === 0) {
         console.warn("Cannot calculate remaining words: Missing data (levelId, progress, allWords).");
-        return "?"; // Return placeholder if data is missing
+        return allWordsInLevel.length || 0; // Return total words if no progress exists
     }
-    const levelData = userLevelProgress[levelId] || { wordStats: {} };
-    const wordStats = levelData.wordStats;
+    const levelData = userLevelProgress[levelId];
+
+    // If no progress data for this level or mode, all words are considered remaining.
+    if (!levelData || !levelData[currentMode] || !levelData[currentMode].wordStats) {
+        return allWordsInLevel.length;
+    }
+    const wordStats = levelData[currentMode].wordStats;
+
     let remainingCount = 0;
     allWordsInLevel.forEach(wordObj => {
         if (wordObj && wordObj.語彙) {
             const stats = wordStats[wordObj.語彙];
+            // If a word has no stats or is not 'correct', it's remaining.
             if (!stats || stats.status !== 'correct') {
                 remainingCount++;
             }
         }
     });
-    console.log(`DEBUG: Calculated remaining words for ${levelId}: ${remainingCount}`);
+    console.log(`DEBUG: Calculated remaining words for ${levelId} in mode ${currentMode}: ${remainingCount}`);
     return remainingCount;
 }
 // --- End Added calculateRemainingWordsInLevel ---
@@ -463,8 +471,6 @@ async function fetchWordsForLevel(levelFile) {
         console.log("FETCH_WORDS_LOG: Raw data loaded from JSON. First few items:", wordsData.slice(0, 3));
         if (wordsData.length > 0) {
              console.log("FETCH_WORDS_LOG: Checking first raw item's properties:", Object.keys(wordsData[0]));
-             // No longer expect 序號
-             // console.log("FETCH_WORDS_LOG: First raw item's 序號:", wordsData[0]?.序號);
         }
         // --- End Log ---
 
@@ -473,8 +479,8 @@ async function fetchWordsForLevel(levelFile) {
 
     } catch (error) {
         console.error(`Error fetching or processing words from ${filePath}:`, error);
-        currentLevelName = levelSelect.options[levelSelect.selectedIndex].text;
-        displayError(`「${currentLevelName}」の単語読み込みに失敗しました。`, true);
+        currentLevelDisplayName = levelSelect.options[levelSelect.selectedIndex].text;
+        displayError(`「${currentLevelDisplayName}」の単語読み込みに失敗しました。`, true);
         return []; // Return empty array on error
     }
 }
@@ -520,13 +526,13 @@ async function startNewQuiz() {
     currentQuizIndex = 0;
     correctAnswers = 0;
     quizResults = [];
-    const currentLevelFile = levelSelect.value;
-    currentLevelName = levelSelect.options[levelSelect.selectedIndex].text;
+    currentLevelId = levelSelect.value;
+    currentLevelDisplayName = levelSelect.options[levelSelect.selectedIndex].text;
 
     // Fetch all words if necessary
     if (allWordsInLevel.length === 0) {
         console.log("DEBUG: allWordsInLevel is empty, fetching...");
-        allWordsInLevel = await fetchWordsForLevel(currentLevelFile);
+        allWordsInLevel = await fetchWordsForLevel(currentLevelId);
         currentLevelTotalWords = allWordsInLevel.length;
     }
     if (currentLevelTotalWords === 0) {
@@ -587,7 +593,7 @@ async function startNewQuiz() {
 
     if (quizWords.length === 0) {
         console.log("All words for this level seem to be completed or no words found for this set index.");
-        displayError(`レベル「${currentLevelName}」の単語を全て学習しました！`, false);
+        displayError(`レベル「${currentLevelDisplayName}」の単語を全て学習しました！`, false);
         // Handle completion state
         isLoading = false;
         hideLoading();
@@ -600,7 +606,7 @@ async function startNewQuiz() {
 
     // --- Display Set Start Message in Bubble ---
     if (setStartMessageElement) {
-        setStartMessageElement.innerHTML = `第 ${currentSet} セットだゾウ！🐘<br>がんばるゾウ！<br><br>${currentLevelName}はあと ${remainingWords} 問！`;
+        setStartMessageElement.innerHTML = `第 ${currentSet} セットだゾウ！🐘<br>がんばるゾウ！<br><br>${currentLevelDisplayName}はあと ${remainingWords} 問！`;
         console.log(`Set start message displayed for set ${currentSet}`);
         // --- Debug Logs Added ---
         console.log("DEBUG: setStartMessageElement content:", setStartMessageElement.innerHTML);
@@ -725,26 +731,51 @@ function recordCurrentAnswer() {
     if (currentQuizIndex < 0 || currentQuizIndex >= quizWords.length) return;
 
     const currentWord = quizWords[currentQuizIndex];
-    const userAnswer = answerInputElement ? answerInputElement.value.trim() : '';
+    let userAnswer;
 
-    // Find if result already exists
+    if (currentMode === 'pronunciation') {
+        const pinyinAnswer = [];
+        if (pinyinInputContainer) {
+            const syllableBlocks = pinyinInputContainer.querySelectorAll('.syllable-block');
+            syllableBlocks.forEach(block => {
+                const letters = block.querySelector('.pinyin-letters').textContent.trim();
+                const selectedButton = block.querySelector('.tone-button.selected');
+                const tone = selectedButton ? parseInt(selectedButton.dataset.tone, 10) : 0; // Use 0 for no selection
+                pinyinAnswer.push({ syllable: letters, tone: tone });
+            });
+        }
+        userAnswer = pinyinAnswer; // Store the array of objects
+    } else {
+        userAnswer = answerInputElement ? answerInputElement.value.trim() : '';
+    }
+
+    // Find if a result for the current word already exists
     let resultEntry = quizResults.find(r => r.wordObject?.語彙 === currentWord.語彙);
 
     if (resultEntry) {
         resultEntry.userAnswer = userAnswer;
         resultEntry.isCorrect = null; // Reset correctness check status
     } else {
+        // Define question and correct answer based on mode
+        let question, correctAnswer;
+        if (currentMode === 'pronunciation') {
+            question = currentWord.語彙;
+            correctAnswer = currentWord.拼音;
+        } else {
+            question = currentWord.和訳;
+            correctAnswer = currentWord.語彙;
+        }
+
         quizResults.push({
-            // Store the whole object!
             wordObject: currentWord,
-            question: currentWord.和訳, // Or other property based on quiz direction
+            question: question,
             userAnswer: userAnswer,
-            correctAnswer: currentWord.語彙,
-            pinyin: currentWord.拼音,
+            correctAnswer: correctAnswer,
+            pinyin: currentWord.拼音, // Always store pinyin for display purposes
             isCorrect: null
         });
     }
-    console.log(`Recorded answer for index ${currentQuizIndex}:`, quizResults[quizResults.length - 1]);
+    console.log(`Recorded answer for index ${currentQuizIndex}:`, quizResults.find(r => r.wordObject?.語彙 === currentWord.語彙));
 }
 
 function handleQuizCompletion() {
@@ -767,642 +798,185 @@ function handleQuizCompletion() {
 
 function checkAnswers() {
     console.log("Checking answers...");
-    if (isQuizComplete) return;
-    if (currentQuizIndex !== quizWords.length - 1) return;
+    recordCurrentAnswer(); // Record the final answer before checking
 
     correctAnswers = 0;
-
-    // --- Pronunciation Mode Check ---
-    if (currentMode === 'pronunciation') {
-        const userPinyinAnswer = getPinyinInputAnswer();
-        const correctPinyinAnswer = parsePinyin(quizWords.map(w => w.拼音).join(' ')); // Assuming single word for now
-
-        // This assumes a single word question. For multiple words, we need to adjust.
-        // Let's assume one word from quizWords for now.
-        const wordToCheck = quizWords[0];
-        const correctSyllables = parsePinyin(wordToCheck.拼音);
-
-        let isAllSyllablesCorrect = true;
-        if (userPinyinAnswer.length !== correctSyllables.length) {
-            isAllSyllablesCorrect = false;
-        } else {
-            for (let i = 0; i < correctSyllables.length; i++) {
-                if (userPinyinAnswer[i].userTone !== correctSyllables[i].tone) {
-                    isAllSyllablesCorrect = false;
-                    break;
-                }
-            }
+    quizResults.forEach(result => {
+        let isCorrect = false;
+        if (currentMode === 'translation') {
+            isCorrect = isAnswerCorrect(result.userAnswer, result.correctAnswer);
+        } else { // Pronunciation mode
+            // The user answer from recordCurrentAnswer is an array of objects
+            const pinyinAnswerObject = result.userAnswer;
+            isCorrect = comparePinyin(pinyinAnswerObject, result.correctAnswer);
+            // NOW, convert the user answer to a string for display purposes
+            result.userAnswer = stringifyPinyin(pinyinAnswerObject);
         }
-        
-        // Record result for the single word
-        quizResults[0] = {
-            wordObject: wordToCheck,
-            question: wordToCheck.語彙,
-            userAnswer: userPinyinAnswer.map(s => `${s.letters}(${s.userTone})`).join(' '), // Store user answer as string
-            correctAnswer: wordToCheck.拼音,
-            isCorrect: isAllSyllablesCorrect
-        };
+        result.isCorrect = isCorrect;
+        if (isCorrect) {
+            correctAnswers++;
+        }
+    });
 
-        if (isAllSyllablesCorrect) correctAnswers = 1;
-
-    } else { // --- Translation Mode Check ---
-        quizResults.forEach(result => {
-             if (result && result.wordObject) {
-                 result.isCorrect = isAnswerCorrect(result.userAnswer, result.correctAnswer);
-                 // ... (rest of the logic for handling delayed carry-over) ...
-                 if (result.isCorrect) correctAnswers++;
-             } else {
-                 console.warn("Missing result or wordObject during checking.");
-             }
-        });
-    }
-
-    // --- Common logic after checking ---
     console.log(`Checking complete. Correct: ${correctAnswers}/${quizWords.length}`);
-    // --- Update delayed carry-over words (for translation mode) ---
-    if (currentMode === 'translation') {
-        quizResults.forEach(result => {
-             // ... The existing complex logic for updating delayedCarryOverWords ...
-        });
-    } else {
-        // Simple carry-over logic for pronunciation mode for now
-        if (correctAnswers < quizWords.length) {
-             const incorrectWord = quizWords[0];
-             const isAlreadyDelayed = delayedCarryOverWords.some(item => item.word.語彙 === incorrectWord.語彙);
-             if (!isAlreadyDelayed) {
-                 const targetSet = currentSet + 2;
-                 delayedCarryOverWords.push({ word: incorrectWord, targetSet });
-             }
-        } else {
-             // If correct, remove from delayed list
-             const indexInDelayed = delayedCarryOverWords.findIndex(item => item.word.語彙 === quizWords[0].語彙);
-             if (indexInDelayed !== -1) {
-                 delayedCarryOverWords.splice(indexInDelayed, 1);
-             }
-        }
-    }
-    console.log("DEBUG: Delayed carry-over words after checking:", delayedCarryOverWords.map(item => `(${item.word.語彙} for set ${item.targetSet})`));
 
-    const currentLevelId = levelSelect.value;
+    // Update carry-over words based on results
+    delayedCarryOverWords = []; // Clear before populating
+    quizResults.forEach((result) => {
+        if (!result.isCorrect) {
+            const targetSet = currentSet + 2; // Reschedule for 2 sets later
+            delayedCarryOverWords.push({ word: result.wordObject, targetSet: targetSet });
+        }
+    });
+    console.log(`DEBUG: Delayed carry-over words after checking:`, delayedCarryOverWords.map(item => `(${item.word.語彙} for set ${item.targetSet})`));
+
     saveProgressToFirestore(currentLevelId, currentSet, quizResults);
     displayResults();
 }
 
 function displayResults() {
     console.log("Displaying results...");
-    quizContainer.classList.add('hidden');
-    resultsContainer.classList.remove('hidden');
-    resultsList.innerHTML = '';
+    isQuizComplete = true;
 
-    const resultsBubbleTextElement = document.getElementById('results-bubble-text');
-    let resultsMessage = "お疲れさまだゾウ！🐘<br>結果を見てほしいゾウ！"; // Default message
+    // Calculate remaining words. This is now safe even if no progress exists.
+    const remainingWordsCount = calculateRemainingWordsInLevel(currentLevelId);
 
-    const potentialNextSetStartIndex = currentSet * wordsPerSet;
-    const isLevelComplete = potentialNextSetStartIndex >= currentLevelTotalWords;
-
-    // --- Calculate remaining words AFTER grading ---
-    const remainingWordsAfterSet = calculateRemainingWordsInLevel(levelSelect.value);
-    // ---------------------------------------------
-
-    if (isLevelComplete) {
-        resultsNextSetButton.disabled = true;
-        resultsNextSetButton.textContent = "レベル完了！";
-        resultsMessage = `すごいゾウ！🐘<br>「${currentLevelName}」を全部終えたんだゾウ！`;
-    } else {
-        resultsNextSetButton.disabled = false;
-        resultsNextSetButton.textContent = "次のセットへ →";
-    }
-
-    // Add remaining count to the message
-    resultsMessage += `<br><br>${currentLevelName}はあと ${remainingWordsAfterSet} 問！`;
-
-    if (resultsBubbleTextElement) {
-        resultsBubbleTextElement.innerHTML = resultsMessage;
-        const resultsBubbleContainer = document.getElementById('results-bubble');
-        if(resultsBubbleContainer) resultsBubbleContainer.classList.remove('hidden');
-    } else {
-        console.warn("#results-bubble-text element not found!");
-        // Fallback
-        const resultsBubbleContainer = document.getElementById('results-bubble');
-        if (resultsBubbleContainer) {
-            resultsBubbleContainer.innerHTML = resultsMessage; // Use innerHTML here too
-            resultsBubbleContainer.classList.remove('hidden');
+    // Update elephant's speech bubble
+    const resultsBubble = document.getElementById('results-bubble');
+    const resultsBubbleText = document.getElementById('results-bubble-text');
+    if (resultsBubble && resultsBubbleText) {
+        resultsBubble.classList.remove('hidden'); // Make the bubble visible
+        if (correctAnswers === quizWords.length) {
+            resultsBubbleText.innerHTML = `全問正解だゾウ！🎉<br>素晴らしいゾウ！<br><br>この級の残りはあと ${remainingWordsCount} 問だゾウ！`;
+        } else {
+            resultsBubbleText.innerHTML = `お疲れさまだゾウ！🐘<br>結果は ${correctAnswers} / ${quizWords.length} 正解だゾウ！<br><br>この級の残りはあと ${remainingWordsCount} 問だゾウ！`;
         }
     }
 
-    resultsNextSetButton.classList.remove('hidden');
-    retrySetButton.classList.remove('hidden');
-
+    resultsList.innerHTML = '';
     quizResults.forEach(result => {
-        if (!result) { console.warn("Skipping undefined result during display."); return; }
+        if (!result || !result.wordObject) {
+            console.warn("Skipping rendering of a faulty result item:", result);
+            return;
+        }
+
         const li = document.createElement('li');
-        li.classList.add('result-item', result.isCorrect ? 'correct' : 'incorrect');
+        li.className = `result-item ${result.isCorrect ? 'correct' : 'incorrect'}`;
+
+        const iconClass = result.isCorrect ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
+        const iconColor = result.isCorrect ? 'green' : 'red';
+
+        let answerSection;
+        if (currentMode === 'translation') {
+             answerSection = `
+                <span class="result-user-answer">${result.userAnswer || '(無回答)'}</span>
+                ${!result.isCorrect ? `<span class="result-separator">→</span> <span class="result-correct-answer">${result.correctAnswer}</span>` : ''}
+             `;
+        } else { // Pronunciation
+            // In pronunciation mode, result.correctAnswer is the pinyin string (e.g., "hǎo").
+            // We use result.pinyin which should be the same, but let's be explicit for clarity.
+            answerSection = `
+                <span class="result-user-answer">${result.userAnswer || '(無回答)'}</span>
+                ${!result.isCorrect ? `<span class="result-separator">→</span> <span class="result-correct-answer">${result.pinyin}</span>` : ''}
+            `;
+        }
+
         li.innerHTML = `
-            <span class="result-icon">${result.isCorrect ? '✅' : '❌'}</span>
+            <i class="bi ${iconClass} result-icon" style="color: ${iconColor};"></i>
             <div class="result-text-details">
-                <span class="result-question">問: ${result.question || '-'}</span>
+                <div class="result-question">${result.question}</div>
                 <div class="result-answer-line">
-                    <span class="result-user-answer">答: ${result.userAnswer || '(未回答)'}</span>
-                    ${!result.isCorrect ? `<span class="result-separator">➔</span><span class="result-correct-answer">${result.correctAnswer || '-'}</span>` : ''}
-                    <span class="result-pinyin">(${result.pinyin || '-'})</span>
+                    ${answerSection}
                 </div>
             </div>
         `;
         resultsList.appendChild(li);
     });
+
+    // Hide quiz, show results
+    quizContainer.classList.add('hidden');
+    resultsContainer.classList.remove('hidden');
+
+    // Show/hide buttons
+    const isLevelFullyComplete = (remainingWordsCount === 0);
+    resultsNextSetButton.classList.toggle('hidden', isLevelFullyComplete);
+    retrySetButton.classList.remove('hidden');
+
+    if (isLevelFullyComplete) {
+         // Optionally, show a special completion message
+         console.log(`Level ${currentLevelId} is fully complete!`);
+         // Maybe change the "Next Set" button text to "Level Complete!"
+         const endOfLevelMessage = document.createElement('p');
+         endOfLevelMessage.textContent = 'このレベルのすべての単語を学習しました！';
+         endOfLevelMessage.style.textAlign = 'center';
+         endOfLevelMessage.style.fontWeight = 'bold';
+         if(resultsContainer.querySelectorAll('p').length < 2) { // Avoid adding duplicate messages
+            resultsContainer.appendChild(endOfLevelMessage);
+         }
+    }
+}
+
+/**
+ * Compares two pinyin answer objects for equality.
+ * @param {Array<Object>} userAnswerPinyin - User's answer, e.g., [{syllable: 'wo', tone: 3}]
+ * @param {string} correctAnswerPinyinStr - Correct answer as a string with tone marks, e.g., 'wǒ'
+ * @returns {boolean} - True if they represent the same pinyin.
+ */
+function comparePinyin(userAnswerPinyin, correctAnswerPinyinStr) {
+    if (!userAnswerPinyin || !correctAnswerPinyinStr) return false;
+
+    try {
+        const correctAnswerParsed = parsePinyin(correctAnswerPinyinStr);
+        if (userAnswerPinyin.length !== correctAnswerParsed.length) return false;
+
+        for (let i = 0; i < userAnswerPinyin.length; i++) {
+            // Normalize by removing any tone numbers that might have sneaked into the syllable string
+            const userSyllable = userAnswerPinyin[i].syllable.replace(/[1-5]/, '');
+            const correctSyllable = correctAnswerParsed[i].letters; // 'letters' from parsePinyin
+            const userTone = userAnswerPinyin[i].tone;
+            const correctTone = correctAnswerParsed[i].tone;
+            
+            // Allow 0 as a valid answer for neutral tone (5)
+            const isToneMatch = (userTone === correctTone) || (userTone === 0 && correctTone === 5);
+
+            if (userSyllable !== correctSyllable || !isToneMatch) {
+                return false;
+            }
+        }
+        return true;
+    } catch (e) {
+        console.error("Error comparing pinyin:", e);
+        return false;
+    }
+}
+
+/**
+ * Converts a pinyin answer object back to a displayable string.
+ * @param {Array<Object>} pinyinAnswer - The pinyin answer array.
+ * @returns {string} - A space-separated string of syllables with tone numbers.
+ */
+function stringifyPinyin(pinyinAnswer) {
+    if (!pinyinAnswer || pinyinAnswer.length === 0) return "(無回答)";
+    // Use tone 0 for display as neutral tone if it's 5. Or show nothing.
+    return pinyinAnswer.map(p => `${p.syllable}${p.tone > 0 && p.tone < 5 ? p.tone : (p.tone === 5 ? '5' : '')}`).join(' ');
 }
 
 function retryCurrentSet() {
-    console.log(`Retrying current set: ${currentSet}`);
-    delayedCarryOverWords = []; // Clear delayed carry-overs
-    startNewQuiz();
-}
-
-// --- Swipe Handlers ---
-function handleTouchStart(event) {
-    // Check if the touch started inside the quiz container
-    if (quizContainer.contains(event.target)) {
-        touchStartX = event.touches[0].clientX;
-        // Optionally change cursor for the container
-        // quizContainer.style.cursor = 'grabbing';
-        console.log('Touch start inside quiz container');
-    } else {
-        touchStartX = null; // Ignore touches starting outside
-    }
-}
-
-function handleTouchMove(event) {
-     if (touchStartX === null) return;
-    touchEndX = event.touches[0].clientX;
-}
-
-function handleTouchEnd() {
-     if (touchStartX === null) return;
-    const deltaX = touchEndX !== 0 ? touchEndX - touchStartX : 0;
-    // quizContainer.style.cursor = 'auto'; // Restore cursor
-
-    if (isQuizComplete || resultsContainer.classList.contains('hidden') === false ) {
-        console.log("Swipe ignored: Quiz complete or results shown.");
-        touchStartX = 0; touchEndX = 0; return;
-    }
-
-    if (deltaX > swipeThreshold && !prevQuizButton.disabled) {
-         console.log("Swipe Right detected on quiz container");
-         prevQuiz();
-    } else if (deltaX < -swipeThreshold) {
-        console.log("Swipe Left detected on quiz container");
-        if (!nextQuizButton.disabled && currentQuizIndex < quizWords.length - 1) {
-            nextQuiz();
-        } else if (currentQuizIndex === quizWords.length - 1 && !isQuizComplete) {
-             console.log("Swipe Left on last question - triggering completion.");
-             handleQuizCompletion();
-        }
-    } else {
-        // console.log("Tap or small swipe detected on quiz container");
-    }
-    touchStartX = 0; touchEndX = 0;
-}
-
-function setupSwipeListeners() {
-    if (quizContainer) {
-        // Use non-passive for start? Usually not needed unless preventing scroll
-        quizContainer.addEventListener('touchstart', handleTouchStart);
-        quizContainer.addEventListener('touchmove', handleTouchMove, { passive: true });
-        quizContainer.addEventListener('touchend', handleTouchEnd);
-        quizContainer.addEventListener('touchcancel', handleTouchEnd);
-        console.log("Swipe listeners attached to quizContainer");
-    } else {
-        console.error("Could not attach swipe listeners: quizContainer not found.");
-    }
-}
-
-// --- Modal and Other UI Functions ---
-function openModal(modalElement) {
-    if (modalElement) {
-        console.log(`DEBUG: openModal called for ${modalElement.id}`); // Log function call
-        modalElement.classList.remove('hidden');
-    } else {
-        console.warn("DEBUG: openModal called with null element.");
-    }
-}
-
-function closeModal(modalElement) {
-    if (modalElement) {
-        console.log(`DEBUG: closeModal called for ${modalElement.id}`); // Log function call
-        modalElement.classList.add('hidden');
-    } else {
-        console.warn("DEBUG: closeModal called with null element.");
-    }
-}
-
-function populateHistoryModal() {
-    console.log("DEBUG: populateHistoryModal called."); // Log function call
-    if (isLoadingProgress) {
-        historyList.innerHTML = '<li>進捗データを読み込み中です...</li>';
-        return;
-    }
-    if (!currentUserId) {
-        historyList.innerHTML = '<li>ログインしていません。</li>';
-        return;
-    }
-    const currentLevelId = levelSelect.value;
-    const levelData = userLevelProgress[currentLevelId]?.[currentMode]; // Use mode-specific data
-
-    // Rest of the function needs adjustment based on how history is stored in Firestore
-    // Assuming levelData.history exists and is an array of objects
-    const history = levelData?.history || [];
-    historyList.innerHTML = '';
-
-    if (history.length === 0) {
-        historyList.innerHTML = '<li>履歴はありません。</li>';
-        return;
-    }
-
-    // Sort history by date descending (newest first) - Firestore might return it sorted
-    history.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    history.forEach((entry, index) => {
-        // ... (Existing date formatting and list item creation)
-        // Make sure entry structure matches what's saved in Firestore
-         const li = document.createElement('li');
-         const dateOptions = {
-             year: 'numeric', month: 'short', day: 'numeric',
-             hour: '2-digit', minute: '2-digit',
-             weekday: 'short'
-         };
-         // Firestore timestamp might need .toDate()
-         const date = entry.date?.toDate ? entry.date.toDate().toLocaleString('ja-JP', dateOptions) : new Date(entry.date).toLocaleString('ja-JP', dateOptions);
-         li.textContent = `${date} - セット ${entry.set} (${entry.correct}/${entry.total} 正解)`;
-         li.classList.add('history-item-clickable');
-         li.dataset.historyIndex = index; // Index based on the sorted array
-         // Store the actual entry data temporarily if needed, or retrieve from userLevelProgress again on click
-         historyList.appendChild(li);
-    });
-}
-
-function populateHistoryDetailModal(historyEntry) {
-    console.log("DEBUG: populateHistoryDetailModal called with entry:", historyEntry);
-    if (!historyEntry) {
-         console.error("Cannot populate history detail: historyEntry is null or undefined.");
-         historyDetailList.innerHTML = '<li>履歴データの読み込みに失敗しました。</li>';
-         historyDetailTitle.textContent = "履歴詳細"; // Reset title
-         return;
-    }
-
-    // --- FIX: Convert Firestore Timestamp to JS Date ---
-    let entryDate = null;
-    if (historyEntry.date?.toDate) { // Check if it has the toDate method
-        entryDate = historyEntry.date.toDate();
-    } else if (historyEntry.date) { // Fallback for potential older data or already converted date
-        entryDate = new Date(historyEntry.date);
-    }
-
-    const dateOptions = { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' };
-    // Use the converted entryDate object
-    const formattedDate = entryDate ? entryDate.toLocaleDateString('ja-JP', dateOptions) : "日付不明";
-    // --- End Fix ---
-
-    historyDetailTitle.textContent = `履歴詳細 (セット ${historyEntry.set} - ${formattedDate})`;
-    historyDetailList.innerHTML = ''; // Clear previous list
-
-    // Check specifically for the results property
-    if (!historyEntry.results || !Array.isArray(historyEntry.results)) {
-        console.warn("Populating history detail: Detailed results (results array) not found for this entry. It might be older data.");
-        historyDetailList.innerHTML = '<li>この履歴には詳細な回答結果は保存されていません。</li>';
-        return; // Stop here, showing only the message
-    }
-
-    // Proceed with populating details if results exist
-    if (historyEntry.results.length === 0) {
-        historyDetailList.innerHTML = '<li>このセットの回答結果データが見つかりませんでした。</li>';
-        return;
-    }
-
-    historyEntry.results.forEach(result => {
-        if (!result) { console.warn("Skipping undefined result in history detail."); return; }
-        const li = document.createElement('li');
-        li.classList.add('result-item', result.isCorrect ? 'correct' : 'incorrect');
-        // Use the same structure as the main results display
-        li.innerHTML = `
-            <span class="result-icon">${result.isCorrect ? '✅' : '❌'}</span>
-            <div class="result-text-details">
-                <span class="result-question">問: ${result.question || '-'}</span>
-                <div class="result-answer-line">
-                    <span class="result-user-answer">答: ${result.userAnswer || '(未回答)'}</span>
-                    ${!result.isCorrect ? `<span class="result-separator">➔</span><span class="result-correct-answer">${result.correctAnswer || '-'}</span>` : ''}
-                    <span class="result-pinyin">(${result.pinyin || '-'})</span>
-                </div>
-            </div>
-        `;
-        historyDetailList.appendChild(li);
-    });
-}
-
-function populateRemainingModal() {
-    console.log("DEBUG: populateRemainingModal called.");
-    if (isLoadingProgress) {
-        incorrectWordsList.innerHTML = '<li>進捗データを読み込み中です...</li>';
-        correctWordsList.innerHTML = '';
-        return;
-    }
-    if (!currentUserId) {
-        incorrectWordsList.innerHTML = '<li>ログインしていません。</li>';
-        correctWordsList.innerHTML = '';
-        return;
-    }
-
-    const currentLevelId = levelSelect.value;
-    const levelData = userLevelProgress[currentLevelId]?.[currentMode] || { wordStats: {} }; // Use mode-specific data
-    const wordStats = levelData.wordStats;
-
-    // --- DEBUG: Log wordStats before loop ---
-    console.log(`DEBUG: populateRemainingModal - Current level (${currentLevelId}) mode (${currentMode}) wordStats:`, JSON.parse(JSON.stringify(wordStats)));
-    console.log(`DEBUG: populateRemainingModal - allWordsInLevel length: ${allWordsInLevel.length}`);
-    // ----------------------------------------
-
-    if (allWordsInLevel.length === 0) {
-         console.warn("populateRemainingModal: allWordsInLevel is empty. Cannot determine word list.");
-         incorrectWordsList.innerHTML = '<li>単語リストを読み込めませんでした。</li>';
-         correctWordsList.innerHTML = '';
-         // Optionally trigger fetchWordsForLevel here if needed, but prefer loading it earlier.
-         return;
-    }
-
-    incorrectWordsList.innerHTML = '';
-    correctWordsList.innerHTML = '';
-
-    let incorrectCountTotal = 0;
-    let correctCountTotal = 0;
-
-    allWordsInLevel.forEach(wordObj => {
-        if (!wordObj || !wordObj.語彙) return;
-        const word = wordObj.語彙;
-        const stats = wordStats[word];
-        const li = document.createElement('li');
-
-        // --- DEBUG: Log classification logic ---
-        const isCorrect = stats && stats.status === 'correct';
-        console.log(`DEBUG: Classifying word: '${word}', Stats:`, stats, `, Is Correct?: ${isCorrect}`);
-        // ---------------------------------------
-
-        if (isCorrect) {
-            li.textContent = word;
-            correctWordsList.appendChild(li);
-            correctCountTotal++;
-        } else { // Treat incorrect and unknown the same for this list
-            const incorrectCount = stats?.incorrectCount || 0;
-            if (incorrectCount > 1) {
-                li.innerHTML = `<b>${word}</b> <span class="count">(${incorrectCount}回)</span>`;
-            } else {
-                 // Show words with 1 mistake or unknown words without count
-                li.textContent = word;
-            }
-            incorrectWordsList.appendChild(li);
-            incorrectCountTotal++;
-        }
-    });
-
-    if (incorrectCountTotal === 0) {
-        incorrectWordsList.innerHTML = '<li>未正解・未学習の単語はありません。</li>';
-    }
-    if (correctCountTotal === 0) {
-        correctWordsList.innerHTML = '<li>正解済みの単語はありません。</li>';
-    }
-}
-
-// --- Auth State Helper Functions ---
-function displayUserEmail(email) {
-    if (userDisplay && email) {
-        userDisplay.textContent = email;
-        userDisplay.classList.remove('hidden');
-    } else if (userDisplay) {
-        userDisplay.classList.add('hidden');
-    }
-}
-
-function clearUIForSignedOutUser() {
-    // Clear dynamic content, reset UI elements
-    displayUserEmail(null);
-    levelSelect.disabled = true; // Disable level selection
-    quizContainer.innerHTML = '<p>ログインしてください。</p>'; // Clear quiz area
-    // Hide buttons, clear progress bars, etc.
-    checkAnswersButton.classList.add('hidden');
+    console.log("Retrying current set...");
+    isQuizComplete = false;
+    currentQuizIndex = 0;
+    // Don't reshuffle, just restart from the beginning of the same set
     resultsContainer.classList.add('hidden');
-    // ... hide other relevant elements ...
+    quizContainer.classList.remove('hidden');
+    answerInputElement.disabled = false;
+    // Don't clear quizResults, just reset their checked state
+    quizResults.forEach(r => r.isCorrect = null);
+    displayQuiz();
 }
 
-// --- Firebase Progress Functions ---
-async function loadProgressFromFirestore(userId) {
-    if (!userId) {
-        console.log("loadProgressFromFirestore: No userId provided.");
-        isLoadingProgress = false;
-        return;
-    }
-    console.log(`Loading progress from Firestore for user: ${userId}`);
-    isLoadingProgress = true;
-    userLevelProgress = {};
-    if(levelSelect) levelSelect.disabled = true;
-    showLoading();
-
-    try {
-        const progressCollectionRef = collection(db, "users", userId, "progress");
-        const querySnapshot = await getDocs(progressCollectionRef);
-
-        querySnapshot.forEach((doc) => {
-            userLevelProgress[doc.id] = doc.data();
-            console.log(`  Loaded progress for level: ${doc.id}`, userLevelProgress[doc.id]);
-            // Ensure data structure integrity for both modes
-            if (!userLevelProgress[doc.id].translation) userLevelProgress[doc.id].translation = { history: [], wordStats: {}, lastCompletedSet: 0 };
-            if (!userLevelProgress[doc.id].pronunciation) userLevelProgress[doc.id].pronunciation = { history: [], wordStats: {}, lastCompletedSet: 0 };
-        });
-
-        console.log("Progress loaded successfully from Firestore:", userLevelProgress);
-    } catch (error) {
-        console.error("Error loading progress from Firestore:", error);
-        displayError("学習データの読み込みに失敗しました。", false);
-    } finally {
-        // --- Determine initial starting set based on loaded progress and CURRENT levelSelect value ---
-        const initialLevelId = levelSelect ? levelSelect.value : 'novice_1'; // Use current dropdown value
-        // Use mode-specific data to determine starting set
-        const initialLevelData = userLevelProgress[initialLevelId]?.[currentMode] || { lastCompletedSet: 0 };
-        const calculatedNextSet = (initialLevelData.lastCompletedSet || 0) + 1;
-        currentSet = calculatedNextSet;
-        console.log(`DEBUG: Calculated next set for loaded progress (${initialLevelId}, ${currentMode}): ${calculatedNextSet}. Global currentSet is now: ${currentSet}`);
-        // ------------------------------------
-        isLoadingProgress = false;
-        if(levelSelect) levelSelect.disabled = false; // Re-enable select
-        hideLoading();
-        console.log("Progress loading process complete.");
-
-        // Start the first quiz and setup swipe listeners
-        console.log(`DEBUG: About to call startNewQuiz with currentSet = ${currentSet}`);
-        await startNewQuiz();
-        setupSwipeListeners();
-    }
-}
-
-async function saveProgressToFirestore(levelId, completedSet, results) {
-    if (!currentUserId) {
-        console.error("saveProgressToFirestore: No user logged in.");
-        return;
-    }
-    console.log(`Saving progress to Firestore for user: ${currentUserId}, level: ${levelId}, set: ${completedSet}`);
-
-    // --- Prepare data for Firestore --- 
-    const now = Timestamp.now(); // Use Firestore Timestamp for consistency
-    const levelDocRef = doc(db, "users", currentUserId, "progress", levelId);
-
-    // 1. Prepare History Entry
-    const historyEntry = {
-        set: completedSet,
-        date: now,
-        correct: results.filter(r => r?.isCorrect).length,
-        total: results.length,
-        results: results // Include detailed results
-    };
-
-    // 2. Prepare Word Stats Updates and Update Local State Immediately
-    const wordStatsUpdates = {}; // Object to hold updates for Firestore merge
-
-    // Ensure local progress structure exists for the current level and mode
-    if (!userLevelProgress[levelId]) {
-        userLevelProgress[levelId] = { translation: { wordStats: {}, history: [], lastCompletedSet: 0 }, pronunciation: { wordStats: {}, history: [], lastCompletedSet: 0 } };
-    }
-    if (!userLevelProgress[levelId][currentMode]) {
-        userLevelProgress[levelId][currentMode] = { wordStats: {}, history: [], lastCompletedSet: 0 };
-    }
-    const localWordStats = userLevelProgress[levelId][currentMode].wordStats; // Reference for local updates
-
-    results.forEach(result => {
-        if (!result || !result.correctAnswer) return;
-        const wordKey = result.correctAnswer;
-
-        // Ensure local structure for the word exists
-        if (!localWordStats[wordKey]) {
-             localWordStats[wordKey] = { status: 'unknown', incorrectCount: 0 };
-        }
-        const currentLocalStat = localWordStats[wordKey];
-
-        if (result.isCorrect) {
-            wordStatsUpdates[wordKey] = { status: 'correct' };
-            currentLocalStat.status = 'correct';
-        } else {
-            const newIncorrectCount = (currentLocalStat.incorrectCount || 0) + 1;
-            wordStatsUpdates[wordKey] = { status: 'incorrect', incorrectCount: newIncorrectCount };
-            currentLocalStat.status = 'incorrect';
-            currentLocalStat.incorrectCount = newIncorrectCount;
-        }
-        console.log(`DEBUG: Prepared Firestore update for '${wordKey}':`, wordStatsUpdates[wordKey]);
-    });
-
-    // 3. Prepare lastCompletedSet update (only if higher)
-    const currentLastCompleted = userLevelProgress[levelId]?.[currentMode]?.lastCompletedSet || 0;
-    const lastCompletedUpdate = completedSet > currentLastCompleted ? completedSet : currentLastCompleted;
-
-    // 4. Construct the final data object to be saved, nested under the current mode
-    const dataToSave = {
-        [currentMode]: {
-            lastCompletedSet: lastCompletedUpdate,
-            history: arrayUnion(historyEntry),
-            wordStats: wordStatsUpdates
-        }
-    };
-
-    // --- Perform Firestore Write --- 
-    try {
-        console.log("DEBUG: Data being sent to setDoc (merge:true):", JSON.parse(JSON.stringify(dataToSave)));
-        await setDoc(levelDocRef, dataToSave, { merge: true });
-
-        console.log("Progress successfully saved to Firestore.");
-
-        // Update local state for lastCompletedSet and history (wordStats already updated)
-        userLevelProgress[levelId][currentMode].lastCompletedSet = lastCompletedUpdate;
-        // Add to local history (ensure it's an array)
-        if (!Array.isArray(userLevelProgress[levelId][currentMode].history)) {
-            userLevelProgress[levelId][currentMode].history = [];
-        }
-        userLevelProgress[levelId][currentMode].history.unshift(historyEntry);
-
-    } catch (error) {
-        console.error("Error saving progress to Firestore:", error);
-        displayError("学習データの保存に失敗しました。", false);
-    }
-}
-
-// --- NEW: Function to save the last used level ---
-async function saveLastUsedLevel(levelId) {
-    if (!currentUserId) {
-        console.warn("Cannot save last used level: No user logged in.");
-        return;
-    }
-    if (!levelId) {
-        console.warn("Cannot save last used level: Invalid levelId provided.");
-        return;
-    }
-
-    const userSettingsRef = doc(db, "users", currentUserId);
-    try {
-        await setDoc(userSettingsRef, {
-            lastUsedLevel: levelId
-        }, { merge: true }); // Use merge:true to create/update the field without overwriting other user data
-        console.log(`Last used level (${levelId}) saved to Firestore for user ${currentUserId}.`);
-    } catch (error) {
-        console.error(`Error saving last used level (${levelId}) to Firestore:`, error);
-        // Optionally notify the user or retry?
-    }
-}
-
-// --- NEW: Function to delete progress for a specific level ---
-async function initializeLevelProgress(levelId) {
-    if (!currentUserId) {
-        console.error("Cannot initialize level: No user logged in.");
-        displayError("ログインしていません。", false);
-        return false; // Indicate failure
-    }
-    if (!levelId) {
-        console.error("Cannot initialize level: Invalid levelId.");
-        displayError("レベルの初期化に失敗しました (無効なレベル)。", false);
-        return false; // Indicate failure
-    }
-
-    console.log(`Attempting to initialize level: ${levelId} for user: ${currentUserId}`);
-    const levelDocRef = doc(db, "users", currentUserId, "progress", levelId);
-
-    try {
-        showLoading();
-        await deleteDoc(levelDocRef);
-        console.log(`Successfully deleted Firestore document for level: ${levelId}`);
-
-        // Clear local progress data for the level
-        if (userLevelProgress[levelId]) {
-            delete userLevelProgress[levelId];
-            console.log(`Cleared local progress for level: ${levelId}`);
-        }
-
-        // Clear delayed carry-overs when initializing
-        delayedCarryOverWords = [];
-        // Reset currentSet if the initialized level was the current one
-        if (levelSelect && levelSelect.value === levelId) {
-            currentSet = 1;
-            console.log(`Current set reset to 1 because initialized level ${levelId} was active.`);
-            // Restart the quiz for the cleared level
-            await startNewQuiz();
-        }
-        hideLoading();
-        alert(`レベル「${levelId}」の学習データが初期化されました。`);
-        return true; // Indicate success
-
-    } catch (error) {
-        console.error(`Error initializing level ${levelId}:`, error);
-        displayError(`レベル「${levelId}」の初期化に失敗しました。`, false);
-        hideLoading();
-        return false; // Indicate failure
-    }
-}
-
-// --- Main Initialization Logic ---
+// --- Main Application Logic ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM fully loaded and parsed.");
+    console.log("DOM fully loaded and parsed. Initializing application...");
 
     // 1. Assign Global DOM References
     try {
@@ -1446,10 +1020,8 @@ document.addEventListener('DOMContentLoaded', () => {
         userDisplay = document.getElementById(USER_DISPLAY_ID);
         pinyinInputContainer = document.getElementById(PINYIN_INPUT_CONTAINER_ID);
         quizAnswerInput = document.getElementById(QUIZ_ANSWER_INPUT_ID);
-        // --- ADDED: Get footer buttons ---
         footerModePronunciation = document.getElementById(FOOTER_MODE_PRONUNCIATION_ID);
         footerModeTranslation = document.getElementById(FOOTER_MODE_TRANSLATION_ID);
-
         console.log("DOM references assigned.");
     } catch (error) {
         console.error("Error assigning DOM references:", error);
@@ -1464,42 +1036,37 @@ document.addEventListener('DOMContentLoaded', () => {
         menuItemHistory, menuItemRemaining, menuItemInitialize, menuItemRestore, menuItemLogout, userDisplay, historyModal, remainingModal, historyDetailModal,
         pinyinInputContainer, quizAnswerInput, footerModePronunciation, footerModeTranslation
     };
-    const missingElements = Object.entries(essentialElements)
-                              .filter(([name, element]) => !element)
-                              .map(([name]) => name);
-
+    const missingElements = Object.entries(essentialElements).filter(([name, element]) => !element).map(([name]) => name);
     if (missingElements.length > 0) {
         const missingList = missingElements.join(', ');
         console.error(`初期化エラー: 必須のDOM要素への参照を取得できません: ${missingList}`);
         alert(`ページの読み込みに失敗しました。必須要素 (${missingList}) が見つかりません。`);
-        // Optionally hide main content
         if(quizContainer) quizContainer.innerHTML = '<p style="color:red;">エラー: ページを正しく読み込めませんでした。</p>';
-        return; // Stop further execution
+        return;
     }
     console.log("Essential DOM element check passed.");
 
-    // 3. Header Bubble Logic (Requires minguoDateString calculation)
+    // 3. Header Bubble Logic
     let minguoDateString = '';
     try {
-        const today = new Date(); const year = today.getFullYear();
-        const month = (today.getMonth() + 1).toString().padStart(2, '0'); const day = today.getDate().toString().padStart(2, '0');
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = (today.getMonth() + 1).toString().padStart(2, '0');
+        const day = today.getDate().toString().padStart(2, '0');
         const taiwaneseWeekdays = ["日", "一", "二", "三", "四", "五", "六"];
         minguoDateString = `民國 ${year - 1911}年${month}月${day}日 (${taiwaneseWeekdays[today.getDay()]})`;
     } catch(e) { console.error("Error calculating date for bubble:", e); }
-    const headerElephantIcon = document.getElementById('header-elephant-icon'); // Can be local
-    const headerSpeechBubble = document.getElementById('header-speech-bubble'); // Can be local
+    const headerElephantIcon = document.getElementById('header-elephant-icon');
+    const headerSpeechBubble = document.getElementById('header-speech-bubble');
     let bubbleTimeoutId = null;
     if (headerElephantIcon && headerSpeechBubble) {
-        // Set initial text content but keep it hidden initially
         headerSpeechBubble.textContent = `今日は${minguoDateString || '...'}だゾウ！`;
-        headerSpeechBubble.classList.remove('visible'); // Ensure hidden
-
+        headerSpeechBubble.classList.remove('visible');
         headerElephantIcon.addEventListener('click', () => {
              if (headerSpeechBubble.classList.contains('visible')) {
                  headerSpeechBubble.classList.remove('visible');
                  if (bubbleTimeoutId) clearTimeout(bubbleTimeoutId);
              } else {
-                 // Text is already set, just make visible
                  headerSpeechBubble.classList.add('visible');
                  if (bubbleTimeoutId) clearTimeout(bubbleTimeoutId);
                  bubbleTimeoutId = setTimeout(() => {
@@ -1511,330 +1078,503 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 4. Attach Event Listeners
     console.log("Attaching event listeners...");
-    // Header Menu
-    if (headerMenuButton && headerMenuDropdown) {
-        headerMenuButton.addEventListener('click', (event) => {
-            event.stopPropagation(); // Prevent click from immediately closing menu via document listener
-            headerMenuDropdown.classList.toggle('hidden');
-            console.log(`DEBUG: Header menu button clicked. Dropdown hidden: ${headerMenuDropdown.classList.contains('hidden')}`); // Log toggle state
-        });
-        document.addEventListener('click', (event) => {
-            // Check if the dropdown exists and is NOT hidden
-            if (headerMenuDropdown && !headerMenuDropdown.classList.contains('hidden')) {
-                // Check if the click target is NOT the dropdown itself or a descendant AND NOT the button itself
-                 if (!headerMenuDropdown.contains(event.target) && event.target !== headerMenuButton) {
-                    console.log("DEBUG: Clicked outside menu, closing."); // Log closing action
-                    headerMenuDropdown.classList.add('hidden');
-                } else {
-                     console.log("DEBUG: Clicked inside menu or on button, not closing."); // Log non-closing action
-                 }
+    headerMenuButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        headerMenuDropdown.classList.toggle('hidden');
+    });
+    document.addEventListener('click', (event) => {
+        if (headerMenuDropdown && !headerMenuDropdown.classList.contains('hidden')) {
+             if (!headerMenuDropdown.contains(event.target) && event.target !== headerMenuButton) {
+                headerMenuDropdown.classList.add('hidden');
             }
-        });
-        console.log("Header menu listeners attached.");
-    } else {
-        console.error("Could not attach header menu listeners: Button or Dropdown element missing.");
-    }
+        }
+    });
+    menuItemHistory.addEventListener('click', () => {
+        populateHistoryModal();
+        openModal(historyModal);
+        headerMenuDropdown.classList.add('hidden');
+    });
+    menuItemRemaining.addEventListener('click', () => {
+        if (isLoadingProgress || !currentUserId || allWordsInLevel.length === 0) {
+             console.log("Remaining words - Cannot populate yet (loading/no user/no words)");
+        } else {
+             populateRemainingModal();
+             openModal(remainingModal);
+        }
+        headerMenuDropdown.classList.add('hidden');
+    });
+    menuItemInitialize.addEventListener('click', async () => {
+        if (headerMenuDropdown) headerMenuDropdown.classList.add('hidden');
+        if (!currentUserId || !levelSelect) return;
+        const levelToInitialize = levelSelect.value;
+        const levelNameToInitialize = levelSelect.options[levelSelect.selectedIndex].text;
+        if (confirm(`レベル「${levelNameToInitialize}」の学習データを完全に削除して初期化します。よろしいですか？`)) {
+            await initializeLevelProgress(levelToInitialize, levelNameToInitialize);
+        }
+    });
+    menuItemRestore.addEventListener('click', () => {
+        if (headerMenuDropdown) headerMenuDropdown.classList.add('hidden');
+        if (!currentUserId) {
+            displayError("ログインしていません。", false);
+            return;
+        }
+        loadProgressFromFirestore(currentUserId);
+    });
+    menuItemLogout.addEventListener('click', () => {
+        if (headerMenuDropdown) headerMenuDropdown.classList.add('hidden');
+        auth.signOut().catch((error) => console.error('Sign out error:', error));
+    });
+    closeHistoryModalButton.addEventListener('click', () => closeModal(historyModal));
+    closeRemainingModalButton.addEventListener('click', () => closeModal(remainingModal));
+    closeHistoryDetailModalButton.addEventListener('click', () => closeModal(historyDetailModal));
+    historyModal.addEventListener('click', (e) => { if (e.target === historyModal) closeModal(historyModal); });
+    remainingModal.addEventListener('click', (e) => { if (e.target === remainingModal) closeModal(remainingModal); });
+    historyDetailModal.addEventListener('click', (e) => { if (e.target === historyDetailModal) closeModal(historyDetailModal); });
 
-    // Menu Item: History
-    if (menuItemHistory) {
-        menuItemHistory.addEventListener('click', () => {
-            console.log("DEBUG: History menu item clicked.");
-            populateHistoryModal();
-            console.log("DEBUG: Opening history modal..."); // Log before open
-            openModal(historyModal);
-            if (headerMenuDropdown) headerMenuDropdown.classList.add('hidden');
-        });
-        console.log("History menu listener attached.");
-    } else { console.error("History menu item not found."); }
-
-    // Menu Item: Remaining Words
-    if (menuItemRemaining) {
-        menuItemRemaining.addEventListener('click', () => {
-            console.log("DEBUG: Remaining words menu item clicked.");
-            // Simplified logic for debugging
-            if (isLoadingProgress || !currentUserId || allWordsInLevel.length === 0) {
-                 console.log("DEBUG: Remaining words - Cannot populate yet (loading/no user/no words)");
-                 // Maybe show a message?
+    historyList.addEventListener('click', (event) => {
+        const listItem = event.target.closest('li.history-item-clickable');
+        if (listItem && listItem.dataset.historyIndex !== undefined) {
+            const displayIndex = parseInt(listItem.dataset.historyIndex, 10);
+            const currentLevelId = levelSelect.value;
+            const levelData = userLevelProgress[currentLevelId]?.[currentMode];
+            const history = levelData?.history || [];
+            const sortedHistory = [...history].sort((a, b) => (b.date.toDate() - a.date.toDate()));
+            if (sortedHistory[displayIndex]) {
+                populateHistoryDetailModal(sortedHistory[displayIndex]);
+                openModal(historyDetailModal);
             } else {
-                 populateRemainingModal();
-                 console.log("DEBUG: Opening remaining words modal..."); // Log before open
-                 openModal(remainingModal);
+                console.error('Could not find history data for display index:', displayIndex);
             }
-            if (headerMenuDropdown) headerMenuDropdown.classList.add('hidden');
-        });
-        console.log("Remaining words menu listener attached.");
-    } else { console.error("Remaining words menu item not found."); }
+        }
+    });
 
-    // Menu Item: Initialize
-    if (menuItemInitialize) {
-        menuItemInitialize.addEventListener('click', async () => {
-            console.log("DEBUG: Initialize menu item clicked.");
-            if (headerMenuDropdown) headerMenuDropdown.classList.add('hidden');
-            if (!currentUserId || !levelSelect) return; // Should not happen if logged in
-            
-            const levelToInitialize = levelSelect.value;
-            const levelNameToInitialize = levelSelect.options[levelSelect.selectedIndex].text;
+    levelSelect.addEventListener('change', async (event) => {
+        const newLevelId = event.target.value;
+        if (isLoadingProgress || !currentUserId) return;
+        levelChangedFlag = true;
+        const levelData = userLevelProgress[newLevelId]?.[currentMode] || { lastCompletedSet: 0 };
+        currentSet = (levelData.lastCompletedSet || 0) + 1;
+        allWordsInLevel = [];
+        currentLevelTotalWords = 0;
+        await startNewQuiz();
+        saveLastUsedLevel(newLevelId);
+    });
 
-            if (confirm(`レベル「${levelNameToInitialize}」の学習データを完全に削除して初期化します。よろしいですか？`)) {
-                await initializeLevelProgress(levelToInitialize);
-            }
-        });
-        console.log("Initialize menu listener attached.");
-    } else { console.error("Initialize menu item not found."); }
+    nextQuizButton.addEventListener('click', nextQuiz);
+    prevQuizButton.addEventListener('click', prevQuiz);
+    checkAnswersButton.addEventListener('click', checkAnswers);
+    resultsNextSetButton.addEventListener('click', () => {
+        currentSet++;
+        startNewQuiz();
+    });
+    retrySetButton.addEventListener('click', retryCurrentSet);
 
-    // Menu Item: Restore
-    if (menuItemRestore) {
-        menuItemRestore.addEventListener('click', () => {
-            console.log("DEBUG: Restore menu item clicked.");
-            if (headerMenuDropdown) headerMenuDropdown.classList.add('hidden');
-            if (!currentUserId) {
-                displayError("ログインしていません。", false);
-                return;
-            }
-            console.log("Manual restore triggered. Reloading progress from Firestore...");
-            // Just call loadProgressFromFirestore, it will handle loading and restarting quiz
-            loadProgressFromFirestore(currentUserId);
-        });
-        console.log("Restore menu listener attached.");
-    } else { console.error("Restore menu item not found."); }
-
-    // Menu Item: Logout
-    if (menuItemLogout) {
-        menuItemLogout.addEventListener('click', () => {
-            console.log("DEBUG: Logout menu item clicked.");
-            if (headerMenuDropdown) headerMenuDropdown.classList.add('hidden');
-            console.log("DEBUG: Calling auth.signOut()..."); // Log before signout
-            auth.signOut().then(() => {
-                console.log('User signed out successfully via button.');
-            }).catch((error) => {
-                console.error('Sign out error on button click:', error);
-            });
-        });
-        console.log("Logout menu listener attached.");
-    } else { console.error("Logout menu item not found."); }
-
-    // Modals Close/Background Click
-    if (closeHistoryModalButton) closeHistoryModalButton.addEventListener('click', () => { console.log("DEBUG: Close history button clicked."); closeModal(historyModal); });
-    if (closeRemainingModalButton) closeRemainingModalButton.addEventListener('click', () => { console.log("DEBUG: Close remaining button clicked."); closeModal(remainingModal); });
-    if (closeHistoryDetailModalButton) closeHistoryDetailModalButton.addEventListener('click', () => { console.log("DEBUG: Close history detail button clicked."); closeModal(historyDetailModal); });
-    if (historyModal) historyModal.addEventListener('click', (e) => { if (e.target === historyModal) { console.log("DEBUG: History modal background clicked."); closeModal(historyModal); } });
-    if (remainingModal) remainingModal.addEventListener('click', (e) => { if (e.target === remainingModal) { console.log("DEBUG: Remaining modal background clicked."); closeModal(remainingModal); } });
-    if (historyDetailModal) historyDetailModal.addEventListener('click', (e) => { if (e.target === historyDetailModal) { console.log("DEBUG: History detail modal background clicked."); closeModal(historyDetailModal); } });
-    console.log("Modal listeners attached.");
-
-    // History List Item Click Listener
-    if (historyList) {
-        historyList.addEventListener('click', (event) => {
-            console.log("DEBUG: Click detected on history list area.");
-            const listItem = event.target.closest('li.history-item-clickable');
-            if (listItem && listItem.dataset.historyIndex !== undefined) {
-                console.log("DEBUG: Clickable history item found. Index:", listItem.dataset.historyIndex);
-                const displayIndex = parseInt(listItem.dataset.historyIndex, 10);
-                const currentLevelId = levelSelect.value;
-                
-                // Use mode-specific data
-                const levelData = userLevelProgress[currentLevelId]?.[currentMode];
-                const history = levelData?.history || [];
-
-                // Define sortedHistory HERE, before using it in the condition
-                const sortedHistory = [...history].sort((a, b) => {
-                    const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
-                    const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
-                    return dateB - dateA; // Descending order
-                });
-
-                // Check if the entry exists in the sorted array
-                if (sortedHistory[displayIndex]) {
-                    const historyEntry = sortedHistory[displayIndex];
-                    console.log("DEBUG: Retrieving entry from sorted history for display index:", displayIndex, "Entry:", JSON.parse(JSON.stringify(historyEntry || null)));
-                    populateHistoryDetailModal(historyEntry);
-                    console.log("DEBUG: Opening history detail modal...");
-                    openModal(historyDetailModal);
-                } else {
-                    console.error('Could not find history data for display index:', displayIndex);
-                }
+    answerInputElement.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (currentQuizIndex < quizWords.length - 1) {
+                nextQuiz();
             } else {
-                 console.log("DEBUG: Clicked item is not a clickable history entry or index is missing.");
-             }
-        });
-        console.log("History list listener attached.");
-    } else { console.error("History list element not found."); }
-
-    // Level Select
-    if (levelSelect) {
-        levelSelect.addEventListener('change', async (event) => {
-            const newLevelId = event.target.value;
-            console.log(`DEBUG: Level select changed. New value selected: ${newLevelId}`);
-            if (isLoadingProgress || !currentUserId) {
-                 console.log("DEBUG: Level change ignored (loading or no user).");
-                 return;
+                checkAnswers();
             }
+        }
+    });
+    footerModePronunciation.addEventListener('click', () => switchMode('pronunciation'));
+    footerModeTranslation.addEventListener('click', () => switchMode('translation'));
+    console.log("All event listeners attached.");
 
-            // --- Set flag to clear delayed carry-overs ---
-            levelChangedFlag = true; 
-            // -------------------------------------
-
-            // Use mode-specific data to determine starting set
-            const levelData = userLevelProgress[newLevelId]?.[currentMode] || { lastCompletedSet: 0 };
-            currentSet = (levelData.lastCompletedSet || 0) + 1;
-            console.log(`DEBUG: Level change - Setting starting set for new level ${newLevelId} (${currentMode}) to: ${currentSet}`);
-            allWordsInLevel = []; // Clear word list for new level
-            currentLevelTotalWords = 0;
-            console.log(`DEBUG: Level change - About to call startNewQuiz for level: ${newLevelId}`);
-            await startNewQuiz(); // This will clear delayedCarryOverWords due to the flag
-            saveLastUsedLevel(newLevelId);
-        });
-        console.log("Level select listener attached.");
-    } else { console.error("Level select element not found."); }
-
-    // Quiz Buttons
-    if (nextQuizButton) {
-        nextQuizButton.addEventListener('click', nextQuiz);
-        console.log("Quiz button listeners attached.");
-    } else { console.error("Next quiz button not found."); }
-    if (prevQuizButton) {
-        prevQuizButton.addEventListener('click', prevQuiz);
-        console.log("Quiz button listeners attached.");
-    } else { console.error("Previous quiz button not found."); }
-    if (checkAnswersButton) {
-        checkAnswersButton.addEventListener('click', checkAnswers);
-        console.log("Quiz button listeners attached.");
-    } else { console.error("Check answers button not found."); }
-    if (resultsNextSetButton) {
-        resultsNextSetButton.addEventListener('click', () => {
-            currentSet++;
-            startNewQuiz();
-        });
-        console.log("Quiz button listeners attached.");
-    } else { console.error("Results next set button not found."); }
-    if (retrySetButton) {
-        retrySetButton.addEventListener('click', retryCurrentSet);
-        console.log("Quiz button listeners attached.");
-    } else { console.error("Retry set button not found."); }
-
-    // Answer Input Enter Key
-    if (answerInputElement) {
-        answerInputElement.addEventListener('keypress', (event) => {
-            console.log("Answer input listener attached.");
-            // ... (enter key logic)
-        });
-        console.log("Answer input listener attached.");
-    } else { console.error("Answer input element not found."); }
-
-    // --- NEW: Footer Navigation Listeners ---
-    if (footerModePronunciation) {
-        footerModePronunciation.addEventListener('click', () => switchMode('pronunciation'));
-        console.log("Footer pronunciation listener attached.");
-    } else { console.error("Footer pronunciation button not found."); }
-    if (footerModeTranslation) {
-        footerModeTranslation.addEventListener('click', () => switchMode('translation'));
-        console.log("Footer translation listener attached.");
-    } else { console.error("Footer translation button not found."); }
-
-    console.log("All planned event listeners attached.");
-
-    // 5. Initial UI State (Before Auth Check)
+    // 5. Initial UI State
     console.log("Setting initial UI state...");
-    if (checkAnswersButton) checkAnswersButton.classList.add('hidden');
-    if (resultsContainer) resultsContainer.classList.add('hidden');
-    if (retrySetButton) retrySetButton.classList.add('hidden');
-    if (resultsNextSetButton) resultsNextSetButton.classList.add('hidden');
-    if (setStartMessageElement) setStartMessageElement.classList.add('hidden');
-    if (progressBar) progressBar.classList.add('hidden');
-    if (levelSelect) levelSelect.disabled = true; // Disable until progress loads
-    updateUIForMode(); // Set initial UI state based on default mode
+    checkAnswersButton.classList.add('hidden');
+    resultsContainer.classList.add('hidden');
+    retrySetButton.classList.add('hidden');
+    resultsNextSetButton.classList.add('hidden');
+    setStartMessageElement.classList.add('hidden');
+    progressBar.classList.add('hidden');
+    levelSelect.disabled = true;
+    updateUIForMode();
     console.log("Initial UI state set.");
 
-    // 6. Setup Authentication Listener (Triggers data load and initial quiz)
+    // 6. Setup Authentication Listener
     console.log("Setting up Firebase Auth listener...");
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // Prevent redundant actions on token refresh if userId hasn't changed
-            if (currentUserId === user.uid) {
-                // console.log("Auth State Changed: User already signed in, no action needed."); // Can be noisy
-                return; 
-            }
-
+            if (currentUserId === user.uid) return;
             currentUserId = user.uid;
             console.log("Auth State Changed: User is signed in:", currentUserId);
             displayUserEmail(user.email);
 
-            // --- Load last used level BEFORE loading progress ---
-            let initialLevelId = 'novice_1'; // Default level
+            let initialLevelId = 'novice_1';
             const userSettingsRef = doc(db, "users", currentUserId);
             try {
-                console.log("Attempting to load last used level...");
                 const userSettingsSnap = await getDoc(userSettingsRef);
                 if (userSettingsSnap.exists() && userSettingsSnap.data()?.lastUsedLevel) {
                     const loadedLevel = userSettingsSnap.data().lastUsedLevel;
-                    // Validate if the loaded level exists in the dropdown
                     if (levelSelect && Array.from(levelSelect.options).some(option => option.value === loadedLevel)) {
                          initialLevelId = loadedLevel;
                          console.log(`Last used level loaded: ${initialLevelId}`);
-                    } else {
-                         console.warn(`Loaded level '${loadedLevel}' not found in dropdown, using default.`);
                     }
-                } else {
-                    console.log("No last used level found in Firestore, using default.");
                 }
             } catch (error) {
                 console.error("Error loading last used level:", error);
-                // Proceed with default level in case of error
             }
+            if (levelSelect) levelSelect.value = initialLevelId;
 
-            // Set the level select dropdown value
-            if (levelSelect) {
-                levelSelect.value = initialLevelId;
-                console.log(`Level select dropdown set to: ${initialLevelId}`);
-            } else {
-                console.error("Cannot set initial level: levelSelect element not found!");
-            }
-            // --- End Load last used level ---
-
-            // Now load progress for the (potentially pre-selected) level
             loadProgressFromFirestore(currentUserId);
-
         } else {
-            if (currentUserId !== null) { // Only trigger if state changes to signed out
-                 currentUserId = null;
-                 userLevelProgress = {};
-                 isLoadingProgress = false;
-                 console.log("Auth State Changed: User is signed out.");
-                 clearUIForSignedOutUser();
-                 window.location.href = 'login.html';
-            } else {
-                 // console.log("Auth State Changed: Already signed out.");
-                 // If already null, maybe redirect just in case?
-                 // Ensure we are not already on login page to avoid redirect loop
-                 if (window.location.pathname !== '/login.html' && window.location.pathname !== '/login') {
-                     console.log("Redirecting to login page as user is null and not on login page.");
-                     window.location.href = 'login.html';
-                 }
+            currentUserId = null;
+            userLevelProgress = {};
+            isLoadingProgress = false;
+            console.log("Auth State Changed: User is signed out.");
+            clearUIForSignedOutUser();
+            if (!window.location.pathname.includes('login.html')) {
+                window.location.href = 'login.html';
             }
         }
     });
     console.log("Firebase Auth listener is active.");
+});
 
-}); // --- End of DOMContentLoaded --- 
+// --- Firebase Progress Functions ---
+async function loadProgressFromFirestore(userId) {
+    if (!userId) {
+        isLoadingProgress = false;
+        return;
+    }
+    console.log(`Loading progress from Firestore for user: ${userId}`);
+    isLoadingProgress = true;
+    userLevelProgress = {};
+    if(levelSelect) levelSelect.disabled = true;
+    showLoading();
 
-// --- NEW: Get user's pinyin input ---
-function getPinyinInputAnswer() {
-    if (!pinyinInputContainer) return [];
-    const userAnswer = [];
-    const syllableBlocks = pinyinInputContainer.querySelectorAll('.syllable-block');
-
-    syllableBlocks.forEach(block => {
-        const letters = block.querySelector('.pinyin-letters').textContent;
-        const selectedButton = block.querySelector('.tone-button.selected');
-        const userTone = selectedButton ? parseInt(selectedButton.dataset.tone, 10) : 0; // 0 if no selection
-        
-        userAnswer.push({
-            letters: letters,
-            userTone: userTone
+    try {
+        const progressCollectionRef = collection(db, "users", userId, "progress");
+        const querySnapshot = await getDocs(progressCollectionRef);
+        querySnapshot.forEach((doc) => {
+            userLevelProgress[doc.id] = doc.data();
+            console.log(`  Loaded progress for level: ${doc.id}`);
+            if (!userLevelProgress[doc.id].translation) userLevelProgress[doc.id].translation = { history: [], wordStats: {}, lastCompletedSet: 0 };
+            if (!userLevelProgress[doc.id].pronunciation) userLevelProgress[doc.id].pronunciation = { history: [], wordStats: {}, lastCompletedSet: 0 };
         });
+        console.log("Progress loaded successfully from Firestore:", userLevelProgress);
+    } catch (error) {
+        console.error("Error loading progress from Firestore:", error);
+        displayError("学習データの読み込みに失敗しました。", false);
+    } finally {
+        const initialLevelId = levelSelect ? levelSelect.value : 'novice_1';
+        const initialLevelData = userLevelProgress[initialLevelId]?.[currentMode] || { lastCompletedSet: 0 };
+        currentSet = (initialLevelData.lastCompletedSet || 0) + 1;
+        console.log(`DEBUG: Calculated next set for loaded progress (${initialLevelId}, ${currentMode}): ${currentSet}`);
+        isLoadingProgress = false;
+        if(levelSelect) levelSelect.disabled = false;
+        hideLoading();
+        console.log("Progress loading process complete.");
+        await startNewQuiz();
+        setupSwipeListeners();
+    }
+}
+
+async function saveProgressToFirestore(levelId, completedSet, results) {
+    if (!currentUserId) {
+        console.error("saveProgressToFirestore: No user logged in.");
+        return;
+    }
+    console.log(`Saving progress to Firestore for user: ${currentUserId}, level: ${levelId}, set: ${completedSet}`);
+
+    const now = Timestamp.now();
+    const levelDocRef = doc(db, "users", currentUserId, "progress", levelId);
+
+    const historyEntry = {
+        set: completedSet,
+        date: now,
+        correct: results.filter(r => r?.isCorrect).length,
+        total: results.length,
+        results: results
+    };
+
+    const wordStatsUpdates = {};
+    if (!userLevelProgress[levelId]) {
+        userLevelProgress[levelId] = { translation: { wordStats: {}, history: [], lastCompletedSet: 0 }, pronunciation: { wordStats: {}, history: [], lastCompletedSet: 0 } };
+    }
+    if (!userLevelProgress[levelId][currentMode]) {
+        userLevelProgress[levelId][currentMode] = { wordStats: {}, history: [], lastCompletedSet: 0 };
+    }
+    const localWordStats = userLevelProgress[levelId][currentMode].wordStats;
+
+    results.forEach(result => {
+        if (!result || !result.wordObject) return;
+        const wordKey = result.wordObject.語彙; // Use word object for key
+        if (!localWordStats[wordKey]) {
+             localWordStats[wordKey] = { status: 'unknown', incorrectCount: 0 };
+        }
+        const currentLocalStat = localWordStats[wordKey];
+        if (result.isCorrect) {
+            wordStatsUpdates[wordKey] = { status: 'correct' };
+            currentLocalStat.status = 'correct';
+        } else {
+            const newIncorrectCount = (currentLocalStat.incorrectCount || 0) + 1;
+            wordStatsUpdates[wordKey] = { status: 'incorrect', incorrectCount: newIncorrectCount };
+            currentLocalStat.status = 'incorrect';
+            currentLocalStat.incorrectCount = newIncorrectCount;
+        }
     });
 
-    console.log("User's pinyin answer:", userAnswer);
-    return userAnswer;
+    const currentLastCompleted = userLevelProgress[levelId]?.[currentMode]?.lastCompletedSet || 0;
+    const lastCompletedUpdate = completedSet > currentLastCompleted ? completedSet : currentLastCompleted;
+
+    const dataToSave = {
+        [currentMode]: {
+            lastCompletedSet: lastCompletedUpdate,
+            history: arrayUnion(historyEntry),
+            wordStats: wordStatsUpdates
+        }
+    };
+
+    try {
+        await setDoc(levelDocRef, dataToSave, { merge: true });
+        console.log("Progress successfully saved to Firestore.");
+        userLevelProgress[levelId][currentMode].lastCompletedSet = lastCompletedUpdate;
+        if (!Array.isArray(userLevelProgress[levelId][currentMode].history)) {
+            userLevelProgress[levelId][currentMode].history = [];
+        }
+        userLevelProgress[levelId][currentMode].history.unshift(historyEntry);
+    } catch (error) {
+        console.error("Error saving progress to Firestore:", error);
+        displayError("学習データの保存に失敗しました。", false);
+    }
 }
-// ------------------------------------
+
+// --- Auth State Helper Functions ---
+function displayUserEmail(email) {
+    if (userDisplay && email) {
+        userDisplay.textContent = email;
+        userDisplay.classList.remove('hidden');
+    } else if (userDisplay) {
+        userDisplay.classList.add('hidden');
+    }
+}
+
+function clearUIForSignedOutUser() {
+    displayUserEmail(null);
+    levelSelect.disabled = true;
+    quizContainer.innerHTML = '<p>ログインしてください。</p>';
+    checkAnswersButton.classList.add('hidden');
+    resultsContainer.classList.add('hidden');
+}
+
+// --- Swipe Handlers ---
+function handleTouchStart(event) {
+    if (quizContainer.contains(event.target)) {
+        touchStartX = event.touches[0].clientX;
+    } else {
+        touchStartX = null;
+    }
+}
+
+function handleTouchMove(event) {
+     if (touchStartX === null) return;
+    touchEndX = event.touches[0].clientX;
+}
+
+function handleTouchEnd() {
+     if (touchStartX === null) return;
+    const deltaX = touchEndX !== 0 ? touchEndX - touchStartX : 0;
+    if (isQuizComplete || resultsContainer.classList.contains('hidden') === false ) {
+        touchStartX = 0; touchEndX = 0; return;
+    }
+    if (deltaX > swipeThreshold && !prevQuizButton.disabled) {
+         prevQuiz();
+    } else if (deltaX < -swipeThreshold) {
+        if (!nextQuizButton.disabled && currentQuizIndex < quizWords.length - 1) {
+            nextQuiz();
+        } else if (currentQuizIndex === quizWords.length - 1 && !isQuizComplete) {
+             handleQuizCompletion();
+        }
+    }
+    touchStartX = 0; touchEndX = 0;
+}
+
+function setupSwipeListeners() {
+    if (quizContainer) {
+        quizContainer.addEventListener('touchstart', handleTouchStart);
+        quizContainer.addEventListener('touchmove', handleTouchMove, { passive: true });
+        quizContainer.addEventListener('touchend', handleTouchEnd);
+        quizContainer.addEventListener('touchcancel', handleTouchEnd);
+        console.log("Swipe listeners attached to quizContainer");
+    }
+}
+
+// --- Modal and Other UI Functions ---
+function openModal(modalElement) {
+    if (modalElement) modalElement.classList.remove('hidden');
+}
+
+function closeModal(modalElement) {
+    if (modalElement) modalElement.classList.add('hidden');
+}
+
+function populateHistoryModal() {
+    if (isLoadingProgress) {
+        historyList.innerHTML = '<li>進捗データを読み込み中です...</li>';
+        return;
+    }
+    if (!currentUserId) {
+        historyList.innerHTML = '<li>ログインしていません。</li>';
+        return;
+    }
+    const currentLevelId = levelSelect.value;
+    const levelData = userLevelProgress[currentLevelId]?.[currentMode];
+    const history = levelData?.history || [];
+    historyList.innerHTML = '';
+    if (history.length === 0) {
+        historyList.innerHTML = '<li>履歴はありません。</li>';
+        return;
+    }
+    history.sort((a, b) => (b.date.toDate() - a.date.toDate()));
+    history.forEach((entry, index) => {
+         const li = document.createElement('li');
+         const dateOptions = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', weekday: 'short' };
+         const date = entry.date?.toDate ? entry.date.toDate().toLocaleString('ja-JP', dateOptions) : new Date(entry.date).toLocaleString('ja-JP', dateOptions);
+         li.textContent = `${date} - セット ${entry.set} (${entry.correct}/${entry.total} 正解)`;
+         li.classList.add('history-item-clickable');
+         li.dataset.historyIndex = index;
+         historyList.appendChild(li);
+    });
+}
+
+function populateHistoryDetailModal(historyEntry) {
+    if (!historyEntry) {
+         historyDetailList.innerHTML = '<li>履歴データの読み込みに失敗しました。</li>';
+         historyDetailTitle.textContent = "履歴詳細";
+         return;
+    }
+    let entryDate = historyEntry.date?.toDate ? historyEntry.date.toDate() : new Date(historyEntry.date);
+    const dateOptions = { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' };
+    const formattedDate = entryDate ? entryDate.toLocaleDateString('ja-JP', dateOptions) : "日付不明";
+    historyDetailTitle.textContent = `履歴詳細 (セット ${historyEntry.set} - ${formattedDate})`;
+    historyDetailList.innerHTML = '';
+    if (!historyEntry.results || !Array.isArray(historyEntry.results)) {
+        historyDetailList.innerHTML = '<li>この履歴には詳細な回答結果は保存されていません。</li>';
+        return;
+    }
+    if (historyEntry.results.length === 0) {
+        historyDetailList.innerHTML = '<li>このセットの回答結果データが見つかりませんでした。</li>';
+        return;
+    }
+    historyEntry.results.forEach(result => {
+        if (!result) return;
+        const li = document.createElement('li');
+        li.classList.add('result-item', result.isCorrect ? 'correct' : 'incorrect');
+        li.innerHTML = `
+            <span class="result-icon">${result.isCorrect ? '✅' : '❌'}</span>
+            <div class="result-text-details">
+                <span class="result-question">問: ${result.question || '-'}</span>
+                <div class="result-answer-line">
+                    <span class="result-user-answer">答: ${result.userAnswer || '(未回答)'}</span>
+                    ${!result.isCorrect ? `<span class="result-separator">➔</span><span class="result-correct-answer">${result.correctAnswer || '-'}</span>` : ''}
+                    <span class="result-pinyin">(${result.pinyin || '-'})</span>
+                </div>
+            </div>
+        `;
+        historyDetailList.appendChild(li);
+    });
+}
+
+function populateRemainingModal() {
+    if (isLoadingProgress || !currentUserId) {
+        incorrectWordsList.innerHTML = '<li>進捗データを読み込み中です...</li>';
+        correctWordsList.innerHTML = '';
+        return;
+    }
+    const currentLevelId = levelSelect.value;
+    const levelData = userLevelProgress[currentLevelId]?.[currentMode] || { wordStats: {} };
+    const wordStats = levelData.wordStats;
+    if (allWordsInLevel.length === 0) {
+         incorrectWordsList.innerHTML = '<li>単語リストを読み込めませんでした。</li>';
+         correctWordsList.innerHTML = '';
+         return;
+    }
+    incorrectWordsList.innerHTML = '';
+    correctWordsList.innerHTML = '';
+    let incorrectCountTotal = 0;
+    let correctCountTotal = 0;
+    allWordsInLevel.forEach(wordObj => {
+        if (!wordObj || !wordObj.語彙) return;
+        const word = wordObj.語彙;
+        const stats = wordStats[word];
+        const li = document.createElement('li');
+        const isCorrect = stats && stats.status === 'correct';
+        if (isCorrect) {
+            li.textContent = word;
+            correctWordsList.appendChild(li);
+            correctCountTotal++;
+        } else {
+            const incorrectCount = stats?.incorrectCount || 0;
+            if (incorrectCount > 1) {
+                li.innerHTML = `<b>${word}</b> <span class="count">(${incorrectCount}回)</span>`;
+            } else {
+                li.textContent = word;
+            }
+            incorrectWordsList.appendChild(li);
+            incorrectCountTotal++;
+        }
+    });
+    if (incorrectCountTotal === 0) {
+        incorrectWordsList.innerHTML = '<li>未正解・未学習の単語はありません。</li>';
+    }
+    if (correctCountTotal === 0) {
+        correctWordsList.innerHTML = '<li>正解済みの単語はありません。</li>';
+    }
+}
+
+async function initializeLevelProgress(levelId, levelName) {
+    if (!currentUserId || !levelId) {
+        displayError("レベルの初期化に失敗しました。", false);
+        return;
+    }
+    console.log(`Attempting to initialize level: ${levelId} for user: ${currentUserId}`);
+    const levelDocRef = doc(db, "users", currentUserId, "progress", levelId);
+    try {
+        showLoading();
+        await deleteDoc(levelDocRef);
+        console.log(`Successfully deleted Firestore document for level: ${levelId}`);
+        if (userLevelProgress[levelId]) {
+            delete userLevelProgress[levelId];
+            console.log(`Cleared local progress for level: ${levelId}`);
+        }
+        delayedCarryOverWords = [];
+        if (levelSelect && levelSelect.value === levelId) {
+            currentSet = 1;
+            await startNewQuiz();
+        }
+        hideLoading();
+        alert(`レベル「${levelName}」の学習データが初期化されました。`);
+    } catch (error) {
+        console.error(`Error initializing level ${levelId}:`, error);
+        displayError(`レベル「${levelName}」の初期化に失敗しました。`, false);
+        hideLoading();
+    }
+}
+
+// --- NEW: Function to save the last used level ---
+async function saveLastUsedLevel(levelId) {
+    if (!currentUserId) {
+        console.warn("Cannot save last used level: No user logged in.");
+        return;
+    }
+    if (!levelId) {
+        console.warn("Cannot save last used level: Invalid levelId provided.");
+        return;
+    }
+
+    const userSettingsRef = doc(db, "users", currentUserId);
+    try {
+        await setDoc(userSettingsRef, {
+            lastUsedLevel: levelId
+        }, { merge: true }); // Use merge:true to create/update the field without overwriting other user data
+        console.log(`Last used level (${levelId}) saved to Firestore for user ${currentUserId}.`);
+    } catch (error) {
+        console.error(`Error saving last used level (${levelId}) to Firestore:`, error);
+        // Optionally notify the user or retry?
+    }
+}

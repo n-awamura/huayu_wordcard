@@ -127,8 +127,8 @@ body {
   left: 45px; /* Position right of the icon (width + margin) */
   top: 50%; /* Vertically center relative to logo container */
   transform: translateY(-50%);
-  background-color: #fff;
-  color: #333;
+  background-color: #F7FBFF;
+  color: #102A43;
   border-radius: 8px;
   padding: 7px 12px; /* Reduced vertical padding */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
@@ -157,7 +157,7 @@ body {
   height: 30px;
   border-radius: 0 0 0 15px;
   /* Use box-shadow for fill, match bubble background (#fff) */
-  box-shadow: -3px -15px 0 -7px #fff inset;
+  box-shadow: -3px -15px 0 -7px #F7FBFF inset;
   z-index: 1;
   border: none;
 }
@@ -173,7 +173,7 @@ body {
   height: 30px;
   border-radius: 0 0 0 15px;
    /* Use box-shadow for border, use a light gray */
-  box-shadow: -3px -15px 0 -7px #ccc inset;
+  box-shadow: -3px -15px 0 -7px #A9C2D9 inset;
   z-index: 0;
 }
 
@@ -206,8 +206,8 @@ body {
   left: 0;
   width: 100%;
   height: 60px;
-  background-color: #fff;
-  border-top: 1px solid #ddd;
+  background-color: #F7FBFF;
+  border-top: 1px solid #C8DAEA;
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -226,7 +226,6 @@ body {
   font-size: 0.7rem;
   flex-grow: 1;
   height: 100%;
-  transition: color 0.2s ease;
 }
 
 .footer-nav-item:hover {
@@ -238,13 +237,21 @@ body {
 }
 
 .footer-nav-item i {
-  font-size: 1.5rem; /* Size for Bootstrap icon */
+  font-size: 1.8rem; /* Size for Bootstrap icon */
 }
 
 .footer-icon-svg {
-  height: 24px;
-  width: 24px;
-  fill: currentColor; /* Allows color to be controlled by parent's 'color' property */
+  height: 28px;
+  width: 28px;
+  background-color: currentColor;
+  -webkit-mask-image: url('../img/conversation.svg');
+  mask-image: url('../img/conversation.svg');
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
 
 /* ===============================
@@ -395,8 +402,8 @@ body {
 /* Speech Bubble Styles (Common style for both quiz and results) */
 .speech-bubble {
   position: relative;
-  background-color: #fff;
-  color: #333;
+  background-color: #F7FBFF;
+  color: #102A43;
   border-radius: 10px;
   padding: 15px 15px; /* <<< Increased vertical padding slightly */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
@@ -405,7 +412,7 @@ body {
   min-height: 40px;
   display: flex;
   justify-content: center;
-  border: 1px solid #eee;
+  border: 1px solid #DCEBFA;
   font-size: 0.9rem;
   font-weight: bold;
   line-height: 1.5;
@@ -429,7 +436,7 @@ body {
   width: 20px;
   height: 30px;
   border-radius: 0 0 0 15px;
-  box-shadow: -3px -15px 0 -7px #fff inset;
+  box-shadow: -3px -15px 0 -7px #F7FBFF inset;
   z-index: 1;
 }
 .speech-bubble::after {
@@ -440,7 +447,7 @@ body {
   width: 20px;
   height: 30px;
   border-radius: 0 0 0 15px;
-  box-shadow: -3px -15px 0 -7px #eee inset;
+  box-shadow: -3px -15px 0 -7px #DCEBFA inset;
   z-index: 0;
 }
 
@@ -449,10 +456,10 @@ body {
     width: 100%;
     padding: 25px 10px;
     margin-bottom: 8px; /* Reduced from 15px to decrease space */
-    background-color: #ffffff;
+    background-color: #F7FBFF;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    border: 1px solid #eee;
+    border: 1px solid #DCEBFA;
     box-sizing: border-box;
     display: flex;
     align-items: center;
@@ -477,7 +484,7 @@ body {
     margin: 0;
     font-size: 1.3rem;
     font-weight: bold;
-    color: #333;
+    color: #102A43;
     text-align: center;
     /* No specific width needed for flex centering */
     /* width: 100%; */
@@ -494,7 +501,7 @@ body {
   width: 100%;
   padding: 10px 15px; /* Reverted */
   font-size: 1.1rem; /* Reverted */
-  border: 1px solid #ccc; /* Reverted */
+  border: 1px solid #A9C2D9; /* Reverted */
   border-radius: 5px; /* Reverted */
   box-sizing: border-box;
 }
@@ -632,16 +639,16 @@ body {
     padding: 0;
     margin: 0 0 20px 0;
     width: 100%;
-    border: 1px solid #eee;
+    border: 1px solid #DCEBFA;
     border-radius: 8px;
-    background-color: #fff;
+    background-color: #F7FBFF;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 /* Result Item (li) Styles */
 #results-list li.result-item {
     padding: 12px 15px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #DCEBFA;
     display: flex;
     align-items: center; /* Vertically align items */
     gap: 10px; /* Add gap between elements */
@@ -703,7 +710,7 @@ body {
 
 .result-correct-answer {
     font-weight: bold;
-    color: #333;
+    color: #102A43;
 }
 
 .result-pinyin {
@@ -807,8 +814,8 @@ body {
 #results-container .speech-bubble {
   /* Same as .speech-bubble */
   position: relative;
-  background-color: #fff;
-  color: #333;
+  background-color: #F7FBFF;
+  color: #102A43;
   border-radius: 10px;
   padding: 15px 15px; /* <<< Increased vertical padding slightly */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
@@ -817,7 +824,7 @@ body {
   min-height: 40px;
   display: flex;
   justify-content: center;
-  border: 1px solid #eee;
+  border: 1px solid #DCEBFA;
   font-size: 0.9rem;
   font-weight: bold;
 }
@@ -831,7 +838,7 @@ body {
   width: 20px;
   height: 30px;
   border-radius: 0 0 0 15px;
-  box-shadow: -3px -15px 0 -7px #fff inset;
+  box-shadow: -3px -15px 0 -7px #F7FBFF inset;
   z-index: 1;
 }
 
@@ -844,7 +851,7 @@ body {
   width: 20px;
   height: 30px;
   border-radius: 0 0 0 15px;
-  box-shadow: -3px -15px 0 -7px #eee inset;
+  box-shadow: -3px -15px 0 -7px #DCEBFA inset;
   z-index: 0;
 }
 
@@ -853,7 +860,7 @@ body {
 #results-container h4 {
     margin-top: 8px;
     margin-bottom: 10px;
-    color: #333;
+    color: #102A43;
     text-align: center;
     width: 100%;
 }
@@ -863,8 +870,8 @@ body {
   position: absolute;
   top: 50px; /* Position below the header */
   right: 10px; /* Align to the right */
-  background-color: #fff;
-  border: 1px solid #ccc;
+  background-color: #F7FBFF;
+  border: 1px solid #A9C2D9;
   border-radius: 4px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
   z-index: 101; /* Ensure it's above header content */
@@ -881,14 +888,14 @@ body {
   padding: 8px 15px;
   cursor: pointer;
   font-size: 0.9rem;
-  color: #333;
+  color: #102A43;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .header-menu li:hover {
-  background-color: #f0f0f0;
+  background-color: #EBF4FF;
 }
 
 .header-menu i {
@@ -907,7 +914,7 @@ body {
 
 .header-menu ul li.menu-separator hr {
     border: 0;
-    border-top: 1px solid #ccc;
+    border-top: 1px solid #A9C2D9;
     margin: 0;
 }
 
@@ -940,10 +947,10 @@ body {
 }
 
 .modal-content {
-  background-color: #fefefe;
+  background-color: #F7FBFF;
   margin: auto; /* Auto margin for centering (redundant with flex) */
   padding: 25px;
-  border: 1px solid #ddd;
+  border: 1px solid #C8DAEA;
   border-radius: 8px;
   width: 80%; /* Could be more specific */
   max-width: 600px;
@@ -1110,8 +1117,8 @@ body {
     align-items: flex-start;
     gap: 5px; /* Further reduced space for narrow screens */
     width: 100%;
-    margin-top: 10px;
-    padding: 10px 0;
+    /* margin-top: 10px; */ /* この行を削除して翻訳モードと間隔を統一 */
+    padding: 0; /* Remove padding to align with translation mode */
 }
 
 .syllable-block {
@@ -1120,16 +1127,16 @@ body {
     align-items: center;
     gap: 4px; /* Reduced gap between letters and buttons */
     padding: 6px; /* Further reduced padding */
-    background-color: #ffffff;
+    background-color: #F7FBFF;
     border-radius: 8px;
-    border: 1px solid #ddd;
+    border: 1px solid #C8DAEA;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .pinyin-letters {
     font-size: 1.5rem; /* Further reduced font size for compactness */
     font-weight: bold;
-    color: #333;
+    color: #102A43;
     /* Removed the box around the letters as requested */
     background-color: transparent;
     border: none;
@@ -1146,9 +1153,9 @@ body {
 
 .tone-button {
     font-family: 'Noto Sans JP', sans-serif;
-    border: 1px solid #ccc;
-    background-color: #f0f0f0;
-    color: #333;
+    border: 1px solid #A9C2D9;
+    background-color: #EBF4FF;
+    color: #102A43;
     border-radius: 50%;
     width: 26px;   /* Reduced size for smaller screens */
     height: 26px;  /* Reduced size for smaller screens */
@@ -1163,7 +1170,7 @@ body {
 }
 
 .tone-button:hover {
-    background-color: #e0e0e0; /* Darker grey on hover */
+    background-color: #DCEBFA; /* Darker grey on hover */
     border-color: #000095;
 }
 

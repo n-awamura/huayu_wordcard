@@ -7,6 +7,7 @@
 
   <!-- Common Meta / Links -->
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <!-- <link rel="apple-touch-icon" ... > App specific icon recommended -->
   <!-- <meta name="theme-color" ... > App specific color recommended -->
@@ -77,15 +78,14 @@
 </head>
 <body>
   <!-- Header -->
-  <header id="main-header">
+  <header id="main-header" class="header-light">
     <div class="logo-container">
-      <img src="img/elephant.png" alt="Logo" class="header-logo" id="header-elephant-icon"> <!-- Added ID -->
-      <div class="header-bubble" id="header-speech-bubble"></div> <!-- Added Bubble Div -->
-      <span class="title">WORDCARD</span> <!-- App specific title -->
+      <img src="img/elephant.png" alt="Elephant Icon" class="header-logo" id="header-elephant-icon">
+      <span class="title">WORDCARD</span>
+      <div class="header-bubble" id="header-speech-bubble">...</div>
     </div>
     <div class="header-controls">
-      <!-- Add level select and menu button -->
-      <select id="level-select" name="level">
+      <select id="level-select" class="level-select-light">
         <option value="novice_1">準備級一級</option>
         <option value="novice_2">準備級二級</option>
         <option value="level_1">入門級</option>
@@ -94,32 +94,23 @@
         <option value="level_4">高階級</option>
         <option value="level_5">流利級</option>
       </select>
-      <i class="bi bi-three-dots-vertical" id="header-menu-button"></i>
-      <!-- Dropdown Menu (Initially Hidden) -->
-      <div id="header-menu-dropdown" class="header-menu hidden">
-          <ul>
-              <li id="menu-item-history"><i class="bi bi-clock-history"></i> 履歴</li>
-              <li id="menu-item-remaining"><i class="bi bi-card-list"></i> 残りの単語</li>
-              <li class="menu-separator"><hr></li> <!-- Separator -->
-              <li id="menu-item-initialize"><i class="bi bi-trash"></i> 初期化 (現レベル)</li>
-              <li id="menu-item-restore"><i class="bi bi-cloud-download"></i> リストア</li>
-              <li class="menu-separator"><hr></li> <!-- Separator -->
-              <li id="menu-item-logout"><i class="bi bi-box-arrow-right"></i> ログアウト</li>
-              <li class="menu-separator"><hr></li> <!-- Separator -->
-              <li id="user-display" class="user-email-display hidden"></li> <!-- User email display moved down -->
-          </ul>
-      </div>
+      <i class="bi bi-list" id="header-menu-button"></i>
     </div>
   </header>
-
-  <!-- Restored Date Display (Commented Out) -->
-  <!-- <div id="current-date-display"></div> -->
-
-  <!-- Removed Set Info Display -->
-  <!-- <div id="set-info">準備級一級 (0 / 0)</div> -->
-
-  <!-- Quiz Title (Remains outside Header) -->
-  <!-- <div id="quiz-title">今日の問題</div> -->
+  <!-- Header Menu Dropdown -->
+  <div id="header-menu-dropdown" class="header-menu hidden">
+    <ul>
+      <li id="menu-item-history"><i class="bi bi-clock-history"></i> 学習履歴</li>
+      <li id="menu-item-remaining"><i class="bi bi-card-list"></i> 残りの単語</li>
+      <li class="menu-separator"><hr></li>
+      <li id="menu-item-initialize"><i class="bi bi-trash"></i> 初期化</li>
+      <li id="menu-item-restore"><i class="bi bi-arrow-clockwise"></i> リストア</li>
+      <li class="menu-separator"><hr></li>
+      <li id="menu-item-logout"><i class="bi bi-box-arrow-right"></i> ログアウト</li>
+      <li class="menu-separator"><hr></li>
+      <li class="user-email-display" id="user-display"></li>
+    </ul>
+  </div>
 
   <!-- Main Content Area -->
   <main id="app-content">
@@ -135,7 +126,7 @@
       </div>
 
       <!-- Progress Bar -->
-      <div id="progress-bar">
+      <div id="progress-bar" class="hidden">
         <div id="progress-bar-fill" style="width: 0%;"></div>
       </div>
 
@@ -148,17 +139,20 @@
 
       <!-- Answer Area (Keep as is) -->
       <div class="answer-area">
-        <input type="text" id="quiz-answer-input" placeholder="回答を入力 (華語)">
+        <!-- For Translation Mode -->
+        <input type="text" id="quiz-answer-input" placeholder="回答を入力..." autocomplete="off">
+
+        <!-- For Pronunciation Mode (Initially Hidden) -->
+        <div id="pinyin-input-container" class="hidden">
+            <!-- Pinyin syllable blocks will be generated here by JS -->
+        </div>
       </div>
 
       <!-- Quiz Controls (Modified Buttons) -->
       <div class="quiz-controls">
-         <!-- Re-added text -->
-         <button id="prev-quiz-button" disabled><i class="bi bi-arrow-left-circle-fill"></i> </button>
-         <!-- Re-added text -->
-         <button id="next-quiz-button"><i class="bi bi-arrow-right-circle-fill"></i></button>
-         <!-- Check answers button remains the same -->
-         <button id="check-answers-button" class="hidden"><i class="bi bi-check2-square"></i> </button>
+        <button id="prev-quiz-button" class="quiz-button-light" disabled>←</button>
+        <button id="next-quiz-button" class="quiz-button-light">→</button>
+        <button id="check-answers-button" class="quiz-button-light hidden">答え合わせ</button>
       </div>
     </div>
 
@@ -191,6 +185,18 @@
     </div>
 
   </main>
+
+  <!-- NEW: Main Footer for Navigation -->
+  <footer id="main-footer">
+    <div class="footer-nav-item" id="footer-mode-pronunciation">
+      <img src="img/conversation.svg" class="footer-icon-svg" alt="発音モード">
+      <span>発音</span>
+    </div>
+    <div class="footer-nav-item" id="footer-mode-translation">
+      <i class="bi bi-translate"></i>
+      <span>翻訳</span>
+    </div>
+  </footer>
 
   <!-- Modals (Initially Hidden) -->
   <div id="history-modal" class="modal hidden">
@@ -243,13 +249,6 @@
 
   <!-- App Specific JS -->
   <script type="module" src="js/script.js"></script>
-
-  <!-- Footer (Commented Out) -->
-  <!--
-  <footer id="main-footer">
-    
-  </footer>
-  -->
 
 </body>
 </html> 

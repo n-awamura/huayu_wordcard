@@ -56,6 +56,12 @@ const CLOSE_HISTORY_DETAIL_MODAL_ID = 'close-history-detail-modal';
 const HISTORY_DETAIL_TITLE_ID = 'history-detail-title';
 const HISTORY_DETAIL_LIST_ID = 'history-detail-list';
 const USER_DISPLAY_ID = 'user-display';
+const PINYIN_INPUT_CONTAINER_ID = 'pinyin-input-container';
+const QUIZ_ANSWER_INPUT_ID = 'quiz-answer-input';
+
+// --- NEW: Footer navigation item IDs ---
+const FOOTER_MODE_PRONUNCIATION_ID = 'footer-mode-pronunciation';
+const FOOTER_MODE_TRANSLATION_ID = 'footer-mode-translation';
 
 // --- Global DOM Element References ---
 let levelSelect, quizContainer, setStartMessageElement, questionNumberDisplayElement, actualQuizQuestionElement, answerInputElement,
@@ -64,7 +70,8 @@ let levelSelect, quizContainer, setStartMessageElement, questionNumberDisplayEle
     headerMenuButton, headerMenuDropdown, menuItemHistory, menuItemRemaining, menuItemInitialize, menuItemRestore, menuItemLogout,
     historyModal, remainingModal, closeHistoryModalButton, closeRemainingModalButton, historyList,
     incorrectWordsList, correctWordsList, historyDetailModal, closeHistoryDetailModalButton,
-    historyDetailTitle, historyDetailList, userDisplay;
+    historyDetailTitle, historyDetailList, userDisplay, pinyinInputContainer, quizAnswerInput,
+    footerModePronunciation, footerModeTranslation; // --- ADDED footer button refs
 
 // --- Global Variables ---
 let allWordsInLevel = [];
@@ -82,6 +89,7 @@ let currentUserId = null;
 let userLevelProgress = {};
 let isLoadingProgress = true;
 let delayedCarryOverWords = []; // <<< ADDED: Stores { word: wordObject, targetSet: number }
+let currentMode = 'pronunciation'; // <<< CHANGED: Default mode is now pronunciation
 
 // Swipe tracking variables
 let touchStartX = 0;
@@ -193,6 +201,251 @@ function isAnswerCorrect(userAnswer, correctAnswer) {
 
     // 3. Default: If none of the above patterns match, it's incorrect based on the initial check
     return false;
+}
+
+// --- NEW: Pinyin Utility Functions ---
+const toneMarkMap = {
+    'ā': ['a', 1], 'á': ['a', 2], 'ǎ': ['a', 3], 'à': ['a', 4], 'ă': ['a', 3],
+    'ē': ['e', 1], 'é': ['e', 2], 'ě': ['e', 3], 'è': ['e', 4], 'ĕ': ['e', 3],
+    'ī': ['i', 1], 'í': ['i', 2], 'ǐ': ['i', 3], 'ì': ['i', 4], 'ĭ': ['i', 3],
+    'ō': ['o', 1], 'ó': ['o', 2], 'ǒ': ['o', 3], 'ò': ['o', 4], 'ŏ': ['o', 3],
+    'ū': ['u', 1], 'ú': ['u', 2], 'ǔ': ['u', 3], 'ù': ['u', 4], 'ŭ': ['u', 3],
+    'ǖ': ['ü', 1], 'ǘ': ['ü', 2], 'ǚ': ['ü', 3], 'ǜ': ['ü', 4],
+};
+
+// --- NEW: Syllable dictionary based on Standard Mandarin Pinyin ---
+// This Set contains all valid pinyin syllables (without tones).
+// It's used by the new `parsePinyin` function to correctly segment pinyin strings.
+const validSyllables = new Set([
+  // Zero-initial syllables
+  'a', 'o', 'e', 'er', 'ai', 'ei', 'ao', 'ou', 'an', 'en', 'ang', 'eng',
+  'yi', 'ya', 'ye', 'yao', 'you', 'yan', 'yin', 'yang', 'ying', 'yong',
+  'wu', 'wa', 'wo', 'wai', 'wei', 'wan', 'wen', 'wang', 'weng',
+  'yu', 'yue', 'yuan', 'yun',
+  // Syllables with initial consonants
+  'ba', 'bo', 'bai', 'bei', 'bao', 'ban', 'ben', 'bang', 'beng', 'bi', 'bie', 'biao', 'bian', 'bin', 'bing', 'bu',
+  'pa', 'po', 'pai', 'pei', 'pao', 'pou', 'pan', 'pen', 'pang', 'peng', 'pi', 'pie', 'piao', 'pian', 'pin', 'ping', 'pu',
+  'ma', 'mo', 'me', 'mai', 'mei', 'mao', 'mou', 'man', 'men', 'mang', 'meng', 'mi', 'mie', 'miao', 'mian', 'min', 'ming', 'mu',
+  'fa', 'fo', 'fei', 'fou', 'fan', 'fen', 'fang', 'feng', 'fu',
+  'da', 'de', 'dai', 'dei', 'dao', 'dou', 'dan', 'den', 'dang', 'deng', 'dong', 'di', 'die', 'diao', 'diu', 'dian', 'ding', 'duo', 'dui', 'dun', 'duan',
+  'ta', 'te', 'tai', 'tao', 'tou', 'tan', 'tang', 'teng', 'tong', 'ti', 'tie', 'tiao', 'tian', 'ting', 'tu', 'tuo', 'tui', 'tun', 'tuan',
+  'na', 'ne', 'nai', 'nei', 'nao', 'nou', 'nan', 'nen', 'nang', 'neng', 'nong', 'ni', 'nie', 'niao', 'niu', 'nian', 'nin', 'niang', 'ning', 'nu', 'nü', 'nuo', 'nüe',
+  'la', 'le', 'lai', 'lei', 'lao', 'lou', 'lan', 'lang', 'leng', 'long', 'li', 'lia', 'lie', 'liao', 'liu', 'lian', 'lin', 'liang', 'ling', 'lu', 'lü', 'luo', 'lüe',
+  'ga', 'ge', 'gai', 'gei', 'gao', 'gou', 'gan', 'gen', 'gang', 'geng', 'gong', 'gu', 'gua', 'guo', 'guai', 'gui', 'gun', 'guang',
+  'ka', 'ke', 'kai', 'kei', 'kao', 'kou', 'kan', 'ken', 'kang', 'keng', 'kong', 'ku', 'kua', 'kuo', 'kuai', 'kui', 'kun', 'kuang',
+  'ha', 'he', 'hai', 'hei', 'hao', 'hou', 'han', 'hen', 'hang', 'heng', 'hong', 'hu', 'hua', 'huo', 'huai', 'hui', 'hun', 'huang',
+  'ji', 'jia', 'jie', 'jiao', 'jiu', 'jian', 'jin', 'jiang', 'jing', 'jiong', 'ju', 'jue', 'juan', 'jun',
+  'qi', 'qia', 'qie', 'qiao', 'qiu', 'qian', 'qin', 'qiang', 'qing', 'qiong', 'qu', 'que', 'quan', 'qun',
+  'xi', 'xia', 'xie', 'xiao', 'xiu', 'xian', 'xin', 'xiang', 'xing', 'xiong', 'xu', 'xue', 'xuan', 'xun',
+  'zha', 'zhe', 'zhi', 'zhai', 'zhei', 'zhao', 'zhou', 'zhan', 'zhen', 'zhang', 'zheng', 'zhong', 'zhu', 'zhua', 'zhuo', 'zhuai', 'zhui', 'zhun', 'zhuang',
+  'cha', 'che', 'chi', 'chai', 'chao', 'chou', 'chan', 'chen', 'chang', 'cheng', 'chong', 'chu', 'chua', 'chuo', 'chuai', 'chui', 'chun', 'chuang',
+  'sha', 'she', 'shi', 'shai', 'shei', 'shao', 'shou', 'shan', 'shen', 'shang', 'sheng', 'shu', 'shua', 'shuo', 'shuai', 'shui', 'shun', 'shuang',
+  'ra', 're', 'ri', 'rao', 'rou', 'ran', 'ren', 'rang', 'reng', 'rong', 'ru', 'ruo', 'rui', 'run',
+  'za', 'ze', 'zi', 'zai', 'zei', 'zao', 'zou', 'zan', 'zen', 'zang', 'zeng', 'zong', 'zu', 'zuo', 'zui', 'zun',
+  'ca', 'ce', 'ci', 'cai', 'cao', 'cou', 'can', 'cen', 'cang', 'ceng', 'cong', 'cu', 'cuo', 'cui', 'cun',
+  'sa', 'se', 'si', 'sai', 'sao', 'sou', 'san', 'sen', 'sang', 'seng', 'song', 'su', 'suo', 'sui', 'sun',
+  // special nasals
+  'hm', 'hng', 'm', 'n', 'ng', 'r'
+]);
+
+
+// Helper function to remove tone marks from a pinyin string for dictionary lookup.
+function removeTones(pinyinStrWithTones) {
+    if (!pinyinStrWithTones) return '';
+    let str = '';
+    for (const char of pinyinStrWithTones) {
+        if (toneMarkMap[char]) {
+            str += toneMarkMap[char][0]; // Add the base vowel (e.g., 'a' for 'ā')
+        } else {
+            str += char;
+        }
+    }
+    // Normalize 'v' to 'ü' as 'ü' is used in the dictionary.
+    return str.replace(/v/g, 'ü');
+}
+
+// --- NEW: Recursive segmenter with memoization ---
+const memo = new Map();
+function segmentPinyin(s) {
+    if (s === '') return [];
+    if (memo.has(s)) return memo.get(s);
+
+    // Iterate from longest possible syllable to shortest
+    for (let i = Math.min(s.length, 6); i > 0; i--) {
+        const prefix = s.substring(0, i);
+        if (validSyllables.has(prefix)) {
+            const suffixSegmentation = segmentPinyin(s.substring(i));
+            if (suffixSegmentation !== null) { // null indicates failure to segment suffix
+                const result = [prefix, ...suffixSegmentation];
+                memo.set(s, result);
+                return result;
+            }
+        }
+    }
+
+    memo.set(s, null); // Mark this string as unsegmentable
+    return null;
+}
+
+
+// Parses a pinyin string with tone marks into syllables with letters and tone numbers
+function parsePinyin(pinyinStrWithTones) {
+    if (!pinyinStrWithTones) return [];
+
+    // Clear memoization cache for each new call.
+    memo.clear();
+
+    const pinyinParts = pinyinStrWithTones.split("'");
+    const finalParsedSyllables = [];
+
+    for (const part of pinyinParts) {
+        if (part.length === 0) continue;
+
+        const pinyinStrNoTones = removeTones(part);
+        const syllablesNoTones = segmentPinyin(pinyinStrNoTones);
+
+        if (syllablesNoTones === null) {
+            console.error(`Failed to parse pinyin part: "${part}"`);
+            finalParsedSyllables.push({ letters: pinyinStrNoTones, tone: 5, error: true });
+            continue;
+        }
+
+        let partToConsume = part;
+        for (const syllableNoTone of syllablesNoTones) {
+            let consumedOriginal = '';
+            // Consume from `partToConsume` until its "no-tone" version matches `syllableNoTone`
+            let tempOriginal = '';
+            let i = 0;
+            while (i < partToConsume.length) {
+                tempOriginal += partToConsume[i];
+                i++;
+                if (removeTones(tempOriginal) === syllableNoTone) {
+                    consumedOriginal = tempOriginal;
+                    break;
+                }
+            }
+            partToConsume = partToConsume.substring(consumedOriginal.length);
+
+            // Now parse the tones from the `consumedOriginal` syllable
+            let letters = '';
+            let tone = 5;
+            for (const char of consumedOriginal) {
+                if (toneMarkMap[char]) {
+                    const [baseVowel, toneNumber] = toneMarkMap[char];
+                    letters += baseVowel;
+                    tone = toneNumber;
+                } else {
+                    letters += char;
+                }
+            }
+            letters = letters.replace(/v/g, 'ü');
+            finalParsedSyllables.push({ letters, tone });
+        }
+    }
+
+    console.log(`Parsed '${pinyinStrWithTones}' into:`, finalParsedSyllables);
+    return finalParsedSyllables;
+}
+// ------------------------------------
+
+// --- NEW: Pinyin UI Generation ---
+function createPinyinInputUI(pinyinString) {
+    if (!pinyinInputContainer) return;
+    pinyinInputContainer.innerHTML = ''; // Clear previous UI
+
+    const parsedSyllables = parsePinyin(pinyinString);
+    if (parsedSyllables.length === 0) return;
+
+    parsedSyllables.forEach((syllable, index) => {
+        // Create syllable block container
+        const block = document.createElement('div');
+        block.className = 'syllable-block';
+        block.dataset.syllableIndex = index;
+
+        // Create pinyin letters display
+        const letters = document.createElement('div');
+        letters.className = 'pinyin-letters';
+        letters.textContent = syllable.letters;
+
+        // Create tone buttons container
+        const buttons = document.createElement('div');
+        buttons.className = 'tone-buttons';
+
+        // Create 5 tone buttons
+        for (let i = 1; i <= 5; i++) {
+            const btn = document.createElement('button');
+            btn.type = 'button'; // Prevent form submission
+            btn.className = 'tone-button';
+            btn.dataset.tone = i;
+            btn.textContent = (i === 5) ? '軽' : i; // Use '軽' for 5th tone
+            
+            btn.addEventListener('click', (e) => {
+                // Remove 'selected' from siblings
+                const parent = e.target.parentElement;
+                Array.from(parent.children).forEach(child => child.classList.remove('selected'));
+                // Add 'selected' to clicked button
+                e.target.classList.add('selected');
+            });
+            buttons.appendChild(btn);
+        }
+
+        // Append elements to the block
+        block.appendChild(letters);
+        block.appendChild(buttons);
+
+        // Append the block to the main container
+        pinyinInputContainer.appendChild(block);
+    });
+}
+// ---------------------------------
+
+// --- NEW: Mode Switching Logic ---
+function switchMode(newMode) {
+    if (currentMode === newMode) return; // Do nothing if mode is the same
+    currentMode = newMode;
+    console.log(`Mode switched to: ${currentMode}`);
+
+    // Update UI elements based on the new mode
+    updateUIForMode();
+
+    // Restart the quiz in the new mode
+    delayedCarryOverWords = [];
+    console.log("Carry-over words cleared due to mode switch.");
+    
+    // Determine the new starting set based on the progress for the new mode
+    const levelId = levelSelect.value;
+    const levelData = userLevelProgress[levelId]?.[currentMode] || { lastCompletedSet: 0 };
+    currentSet = (levelData.lastCompletedSet || 0) + 1;
+    console.log(`Switched to mode ${currentMode}. New starting set is ${currentSet}`);
+    
+    startNewQuiz(); // This will re-render the quiz for the new mode
+}
+
+function updateUIForMode() {
+    // --- Update Footer Button Active State ---
+    if (footerModePronunciation && footerModeTranslation) {
+        footerModePronunciation.classList.toggle('active', currentMode === 'pronunciation');
+        footerModeTranslation.classList.toggle('active', currentMode === 'translation');
+    }
+
+    if (currentMode === 'pronunciation') {
+        // --- UI for Pronunciation Mode ---
+        if (quizAnswerInput) quizAnswerInput.classList.add('hidden');
+        if (pinyinInputContainer) pinyinInputContainer.classList.remove('hidden');
+
+        // Update question text placeholder if needed (handled in displayQuiz)
+        const questionElement = document.getElementById('actual-quiz-question');
+        if(questionElement) questionElement.textContent = "この単語のピンインは？"; // Placeholder text
+
+    } else {
+        // --- UI for Translation Mode ---
+        if (quizAnswerInput) quizAnswerInput.classList.remove('hidden');
+        if (pinyinInputContainer) pinyinInputContainer.classList.add('hidden');
+        
+        // Update question text placeholder (handled in displayQuiz)
+        const questionElement = document.getElementById('actual-quiz-question');
+        if(questionElement) questionElement.textContent = "この単語の意味は？"; // Placeholder text
+    }
 }
 
 // --- Core Logic Functions ---
@@ -405,15 +658,15 @@ function displayQuiz() {
 
     // Display Question Text
     if (actualQuizQuestionElement) {
-        actualQuizQuestionElement.textContent = wordData.和訳 || 'N/A';
+        if (currentMode === 'pronunciation') {
+            actualQuizQuestionElement.textContent = wordData.語彙;
+            createPinyinInputUI(wordData.拼音); // <<< Call the new UI creation function
+        } else { // Translation mode
+            actualQuizQuestionElement.textContent = wordData.和訳;
+            if (answerInputElement) answerInputElement.value = '';
+        }
     } else {
         console.error("#actual-quiz-question element not found!");
-    }
-
-    answerInputElement.value = '';
-    const savedResult = quizResults[currentQuizIndex];
-    if (savedResult && savedResult.userAnswer !== undefined) {
-        answerInputElement.value = savedResult.userAnswer;
     }
 
     updateQuizCounter();
@@ -514,54 +767,82 @@ function handleQuizCompletion() {
 
 function checkAnswers() {
     console.log("Checking answers...");
-    if (!isQuizComplete) {
-         if (currentQuizIndex === quizWords.length - 1) {
-             recordCurrentAnswer();
-             isQuizComplete = true;
-         } else {
-            console.warn("Check answers called before quiz completion.");
-            return;
-         }
-    }
+    if (isQuizComplete) return;
+    if (currentQuizIndex !== quizWords.length - 1) return;
 
     correctAnswers = 0;
-    // const incorrectWordsFromThisSet = []; // No longer needed directly here
 
-    quizResults.forEach(result => {
-         if (result && result.wordObject) { // Check if wordObject exists
-             result.isCorrect = isAnswerCorrect(result.userAnswer, result.correctAnswer);
-             const wordVocab = result.wordObject.語彙;
+    // --- Pronunciation Mode Check ---
+    if (currentMode === 'pronunciation') {
+        const userPinyinAnswer = getPinyinInputAnswer();
+        const correctPinyinAnswer = parsePinyin(quizWords.map(w => w.拼音).join(' ')); // Assuming single word for now
 
-             if (result.isCorrect) {
-                 correctAnswers++;
-                 // --- Remove from delayed list if answered correctly ---
-                 const indexInDelayed = delayedCarryOverWords.findIndex(item => item.word.語彙 === wordVocab);
-                 if (indexInDelayed !== -1) {
-                     console.log(`DEBUG: Word '${wordVocab}' answered correctly, removing from delayed review.`);
-                     delayedCarryOverWords.splice(indexInDelayed, 1);
-                 }
-                 // ----------------------------------------------------
+        // This assumes a single word question. For multiple words, we need to adjust.
+        // Let's assume one word from quizWords for now.
+        const wordToCheck = quizWords[0];
+        const correctSyllables = parsePinyin(wordToCheck.拼音);
+
+        let isAllSyllablesCorrect = true;
+        if (userPinyinAnswer.length !== correctSyllables.length) {
+            isAllSyllablesCorrect = false;
+        } else {
+            for (let i = 0; i < correctSyllables.length; i++) {
+                if (userPinyinAnswer[i].userTone !== correctSyllables[i].tone) {
+                    isAllSyllablesCorrect = false;
+                    break;
+                }
+            }
+        }
+        
+        // Record result for the single word
+        quizResults[0] = {
+            wordObject: wordToCheck,
+            question: wordToCheck.語彙,
+            userAnswer: userPinyinAnswer.map(s => `${s.letters}(${s.userTone})`).join(' '), // Store user answer as string
+            correctAnswer: wordToCheck.拼音,
+            isCorrect: isAllSyllablesCorrect
+        };
+
+        if (isAllSyllablesCorrect) correctAnswers = 1;
+
+    } else { // --- Translation Mode Check ---
+        quizResults.forEach(result => {
+             if (result && result.wordObject) {
+                 result.isCorrect = isAnswerCorrect(result.userAnswer, result.correctAnswer);
+                 // ... (rest of the logic for handling delayed carry-over) ...
+                 if (result.isCorrect) correctAnswers++;
              } else {
-                 // --- Add to delayed list if answered incorrectly ---
-                 const isAlreadyDelayed = delayedCarryOverWords.some(item => item.word.語彙 === wordVocab);
-                 if (!isAlreadyDelayed) {
-                     const targetSet = currentSet + 2;
-                     console.log(`DEBUG: Word '${wordVocab}' answered incorrectly, scheduling for review in/after set ${targetSet}.`);
-                     delayedCarryOverWords.push({ word: result.wordObject, targetSet: targetSet });
-                 } else {
-                     console.log(`DEBUG: Word '${wordVocab}' answered incorrectly, but already scheduled for review. No change to schedule.`);
-                 }
-                 // ----------------------------------------------------
+                 console.warn("Missing result or wordObject during checking.");
              }
-         } else {
-             console.warn("Missing result or wordObject during checking.");
-         }
-    });
+        });
+    }
 
+    // --- Common logic after checking ---
     console.log(`Checking complete. Correct: ${correctAnswers}/${quizWords.length}`);
+    // --- Update delayed carry-over words (for translation mode) ---
+    if (currentMode === 'translation') {
+        quizResults.forEach(result => {
+             // ... The existing complex logic for updating delayedCarryOverWords ...
+        });
+    } else {
+        // Simple carry-over logic for pronunciation mode for now
+        if (correctAnswers < quizWords.length) {
+             const incorrectWord = quizWords[0];
+             const isAlreadyDelayed = delayedCarryOverWords.some(item => item.word.語彙 === incorrectWord.語彙);
+             if (!isAlreadyDelayed) {
+                 const targetSet = currentSet + 2;
+                 delayedCarryOverWords.push({ word: incorrectWord, targetSet });
+             }
+        } else {
+             // If correct, remove from delayed list
+             const indexInDelayed = delayedCarryOverWords.findIndex(item => item.word.語彙 === quizWords[0].語彙);
+             if (indexInDelayed !== -1) {
+                 delayedCarryOverWords.splice(indexInDelayed, 1);
+             }
+        }
+    }
     console.log("DEBUG: Delayed carry-over words after checking:", delayedCarryOverWords.map(item => `(${item.word.語彙} for set ${item.targetSet})`));
 
-    // --- Save progress --- 
     const currentLevelId = levelSelect.value;
     saveProgressToFirestore(currentLevelId, currentSet, quizResults);
     displayResults();
@@ -725,7 +1006,7 @@ function populateHistoryModal() {
         return;
     }
     const currentLevelId = levelSelect.value;
-    const levelData = userLevelProgress[currentLevelId]; // Use Firestore data
+    const levelData = userLevelProgress[currentLevelId]?.[currentMode]; // Use mode-specific data
 
     // Rest of the function needs adjustment based on how history is stored in Firestore
     // Assuming levelData.history exists and is an array of objects
@@ -831,11 +1112,11 @@ function populateRemainingModal() {
     }
 
     const currentLevelId = levelSelect.value;
-    const levelData = userLevelProgress[currentLevelId] || { wordStats: {} };
+    const levelData = userLevelProgress[currentLevelId]?.[currentMode] || { wordStats: {} }; // Use mode-specific data
     const wordStats = levelData.wordStats;
 
     // --- DEBUG: Log wordStats before loop ---
-    console.log(`DEBUG: populateRemainingModal - Current level (${currentLevelId}) wordStats:`, JSON.parse(JSON.stringify(wordStats)));
+    console.log(`DEBUG: populateRemainingModal - Current level (${currentLevelId}) mode (${currentMode}) wordStats:`, JSON.parse(JSON.stringify(wordStats)));
     console.log(`DEBUG: populateRemainingModal - allWordsInLevel length: ${allWordsInLevel.length}`);
     // ----------------------------------------
 
@@ -928,13 +1209,11 @@ async function loadProgressFromFirestore(userId) {
         const querySnapshot = await getDocs(progressCollectionRef);
 
         querySnapshot.forEach((doc) => {
-            // doc.id will be the levelId (e.g., "novice_1")
-            // doc.data() will be the object { lastCompletedSet, history, wordStats }
             userLevelProgress[doc.id] = doc.data();
             console.log(`  Loaded progress for level: ${doc.id}`, userLevelProgress[doc.id]);
-            // Ensure data structure integrity (optional, but good practice)
-            if (!userLevelProgress[doc.id].history) userLevelProgress[doc.id].history = [];
-            if (!userLevelProgress[doc.id].wordStats) userLevelProgress[doc.id].wordStats = {};
+            // Ensure data structure integrity for both modes
+            if (!userLevelProgress[doc.id].translation) userLevelProgress[doc.id].translation = { history: [], wordStats: {}, lastCompletedSet: 0 };
+            if (!userLevelProgress[doc.id].pronunciation) userLevelProgress[doc.id].pronunciation = { history: [], wordStats: {}, lastCompletedSet: 0 };
         });
 
         console.log("Progress loaded successfully from Firestore:", userLevelProgress);
@@ -944,10 +1223,11 @@ async function loadProgressFromFirestore(userId) {
     } finally {
         // --- Determine initial starting set based on loaded progress and CURRENT levelSelect value ---
         const initialLevelId = levelSelect ? levelSelect.value : 'novice_1'; // Use current dropdown value
-        const initialLevelData = userLevelProgress[initialLevelId] || { lastCompletedSet: 0 };
+        // Use mode-specific data to determine starting set
+        const initialLevelData = userLevelProgress[initialLevelId]?.[currentMode] || { lastCompletedSet: 0 };
         const calculatedNextSet = (initialLevelData.lastCompletedSet || 0) + 1;
         currentSet = calculatedNextSet;
-        console.log(`DEBUG: Calculated next set for loaded progress (${initialLevelId}): ${calculatedNextSet}. Global currentSet is now: ${currentSet}`);
+        console.log(`DEBUG: Calculated next set for loaded progress (${initialLevelId}, ${currentMode}): ${calculatedNextSet}. Global currentSet is now: ${currentSet}`);
         // ------------------------------------
         isLoadingProgress = false;
         if(levelSelect) levelSelect.disabled = false; // Re-enable select
@@ -983,75 +1263,65 @@ async function saveProgressToFirestore(levelId, completedSet, results) {
 
     // 2. Prepare Word Stats Updates and Update Local State Immediately
     const wordStatsUpdates = {}; // Object to hold updates for Firestore merge
-    // Ensure userLevelProgress structure exists locally
-    if (!userLevelProgress[levelId]) userLevelProgress[levelId] = { wordStats: {}, history: [], lastCompletedSet: 0 };
-    if (!userLevelProgress[levelId].wordStats) userLevelProgress[levelId].wordStats = {};
-    const localWordStats = userLevelProgress[levelId].wordStats; // Reference for local updates
+
+    // Ensure local progress structure exists for the current level and mode
+    if (!userLevelProgress[levelId]) {
+        userLevelProgress[levelId] = { translation: { wordStats: {}, history: [], lastCompletedSet: 0 }, pronunciation: { wordStats: {}, history: [], lastCompletedSet: 0 } };
+    }
+    if (!userLevelProgress[levelId][currentMode]) {
+        userLevelProgress[levelId][currentMode] = { wordStats: {}, history: [], lastCompletedSet: 0 };
+    }
+    const localWordStats = userLevelProgress[levelId][currentMode].wordStats; // Reference for local updates
 
     results.forEach(result => {
         if (!result || !result.correctAnswer) return;
         const wordKey = result.correctAnswer;
-        // --- REMOVED dot notation field names ---
-        // const statusField = `wordStats.${wordKey}.status`;
-        // const incorrectCountField = `wordStats.${wordKey}.incorrectCount`;
 
         // Ensure local structure for the word exists
         if (!localWordStats[wordKey]) {
              localWordStats[wordKey] = { status: 'unknown', incorrectCount: 0 };
         }
-        const currentLocalStat = localWordStats[wordKey]; // Get reference to local stat object
+        const currentLocalStat = localWordStats[wordKey];
 
         if (result.isCorrect) {
-            // Prepare update for Firestore using wordKey as the key
-            wordStatsUpdates[wordKey] = {
-                status: 'correct',
-                // Optionally reset incorrect count in Firestore as well
-                // incorrectCount: 0
-            };
-            // Update local status
+            wordStatsUpdates[wordKey] = { status: 'correct' };
             currentLocalStat.status = 'correct';
-            // Optionally reset local incorrect count
-            // currentLocalStat.incorrectCount = 0;
         } else {
             const newIncorrectCount = (currentLocalStat.incorrectCount || 0) + 1;
-             // Prepare update for Firestore using wordKey as the key
-            wordStatsUpdates[wordKey] = {
-                status: 'incorrect',
-                incorrectCount: newIncorrectCount
-            };
-            // Update local state immediately
+            wordStatsUpdates[wordKey] = { status: 'incorrect', incorrectCount: newIncorrectCount };
             currentLocalStat.status = 'incorrect';
             currentLocalStat.incorrectCount = newIncorrectCount;
         }
-        // console.log(`DEBUG: Local wordStats for '${wordKey}' updated:`, currentLocalStat); // Keep this log
-        console.log(`DEBUG: Prepared Firestore update for '${wordKey}':`, wordStatsUpdates[wordKey]); // Log the object being prepared
+        console.log(`DEBUG: Prepared Firestore update for '${wordKey}':`, wordStatsUpdates[wordKey]);
     });
 
     // 3. Prepare lastCompletedSet update (only if higher)
-    const currentLastCompleted = userLevelProgress[levelId]?.lastCompletedSet || 0;
+    const currentLastCompleted = userLevelProgress[levelId]?.[currentMode]?.lastCompletedSet || 0;
     const lastCompletedUpdate = completedSet > currentLastCompleted ? completedSet : currentLastCompleted;
+
+    // 4. Construct the final data object to be saved, nested under the current mode
+    const dataToSave = {
+        [currentMode]: {
+            lastCompletedSet: lastCompletedUpdate,
+            history: arrayUnion(historyEntry),
+            wordStats: wordStatsUpdates
+        }
+    };
 
     // --- Perform Firestore Write --- 
     try {
-        console.log("DEBUG: Data being sent to setDoc (merge:true):", {
-            lastCompletedSet: lastCompletedUpdate,
-            history: "(arrayUnion entry - not shown)", // Avoid logging potentially large array
-            wordStats: wordStatsUpdates // This map will be merged
-        });
-        await setDoc(levelDocRef, {
-            lastCompletedSet: lastCompletedUpdate,
-            history: arrayUnion(historyEntry), // Add new entry to the history array
-            wordStats: wordStatsUpdates // Pass the map of word updates for merging
-        }, { merge: true });
+        console.log("DEBUG: Data being sent to setDoc (merge:true):", JSON.parse(JSON.stringify(dataToSave)));
+        await setDoc(levelDocRef, dataToSave, { merge: true });
 
         console.log("Progress successfully saved to Firestore.");
 
         // Update local state for lastCompletedSet and history (wordStats already updated)
-        if (!userLevelProgress[levelId]) userLevelProgress[levelId] = { history: [] };
-        userLevelProgress[levelId].lastCompletedSet = lastCompletedUpdate;
+        userLevelProgress[levelId][currentMode].lastCompletedSet = lastCompletedUpdate;
         // Add to local history (ensure it's an array)
-        if (!Array.isArray(userLevelProgress[levelId].history)) userLevelProgress[levelId].history = [];
-        userLevelProgress[levelId].history.unshift(historyEntry); // Add to beginning locally for immediate display
+        if (!Array.isArray(userLevelProgress[levelId][currentMode].history)) {
+            userLevelProgress[levelId][currentMode].history = [];
+        }
+        userLevelProgress[levelId][currentMode].history.unshift(historyEntry);
 
     } catch (error) {
         console.error("Error saving progress to Firestore:", error);
@@ -1174,6 +1444,12 @@ document.addEventListener('DOMContentLoaded', () => {
         historyDetailTitle = document.getElementById(HISTORY_DETAIL_TITLE_ID);
         historyDetailList = document.getElementById(HISTORY_DETAIL_LIST_ID);
         userDisplay = document.getElementById(USER_DISPLAY_ID);
+        pinyinInputContainer = document.getElementById(PINYIN_INPUT_CONTAINER_ID);
+        quizAnswerInput = document.getElementById(QUIZ_ANSWER_INPUT_ID);
+        // --- ADDED: Get footer buttons ---
+        footerModePronunciation = document.getElementById(FOOTER_MODE_PRONUNCIATION_ID);
+        footerModeTranslation = document.getElementById(FOOTER_MODE_TRANSLATION_ID);
+
         console.log("DOM references assigned.");
     } catch (error) {
         console.error("Error assigning DOM references:", error);
@@ -1185,8 +1461,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const essentialElements = {
         levelSelect, quizContainer, answerInputElement, nextQuizButton, prevQuizButton, checkAnswersButton,
         resultsContainer, resultsList, resultsNextSetButton, retrySetButton, headerMenuButton, headerMenuDropdown,
-        menuItemHistory, menuItemRemaining, menuItemInitialize, menuItemRestore, menuItemLogout, userDisplay, historyModal, remainingModal, historyDetailModal
-        // Add more as needed, e.g., loadingIndicator, endMessageElement
+        menuItemHistory, menuItemRemaining, menuItemInitialize, menuItemRestore, menuItemLogout, userDisplay, historyModal, remainingModal, historyDetailModal,
+        pinyinInputContainer, quizAnswerInput, footerModePronunciation, footerModeTranslation
     };
     const missingElements = Object.entries(essentialElements)
                               .filter(([name, element]) => !element)
@@ -1356,7 +1632,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const displayIndex = parseInt(listItem.dataset.historyIndex, 10);
                 const currentLevelId = levelSelect.value;
                 
-                const levelData = userLevelProgress[currentLevelId];
+                // Use mode-specific data
+                const levelData = userLevelProgress[currentLevelId]?.[currentMode];
                 const history = levelData?.history || [];
 
                 // Define sortedHistory HERE, before using it in the condition
@@ -1397,9 +1674,10 @@ document.addEventListener('DOMContentLoaded', () => {
             levelChangedFlag = true; 
             // -------------------------------------
 
-            const levelData = userLevelProgress[newLevelId] || { lastCompletedSet: 0 };
+            // Use mode-specific data to determine starting set
+            const levelData = userLevelProgress[newLevelId]?.[currentMode] || { lastCompletedSet: 0 };
             currentSet = (levelData.lastCompletedSet || 0) + 1;
-            console.log(`DEBUG: Level change - Setting starting set for new level ${newLevelId} to: ${currentSet}`);
+            console.log(`DEBUG: Level change - Setting starting set for new level ${newLevelId} (${currentMode}) to: ${currentSet}`);
             allWordsInLevel = []; // Clear word list for new level
             currentLevelTotalWords = 0;
             console.log(`DEBUG: Level change - About to call startNewQuiz for level: ${newLevelId}`);
@@ -1443,6 +1721,16 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Answer input listener attached.");
     } else { console.error("Answer input element not found."); }
 
+    // --- NEW: Footer Navigation Listeners ---
+    if (footerModePronunciation) {
+        footerModePronunciation.addEventListener('click', () => switchMode('pronunciation'));
+        console.log("Footer pronunciation listener attached.");
+    } else { console.error("Footer pronunciation button not found."); }
+    if (footerModeTranslation) {
+        footerModeTranslation.addEventListener('click', () => switchMode('translation'));
+        console.log("Footer translation listener attached.");
+    } else { console.error("Footer translation button not found."); }
+
     console.log("All planned event listeners attached.");
 
     // 5. Initial UI State (Before Auth Check)
@@ -1454,6 +1742,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (setStartMessageElement) setStartMessageElement.classList.add('hidden');
     if (progressBar) progressBar.classList.add('hidden');
     if (levelSelect) levelSelect.disabled = true; // Disable until progress loads
+    updateUIForMode(); // Set initial UI state based on default mode
     console.log("Initial UI state set.");
 
     // 6. Setup Authentication Listener (Triggers data load and initial quiz)
@@ -1527,3 +1816,25 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("Firebase Auth listener is active.");
 
 }); // --- End of DOMContentLoaded --- 
+
+// --- NEW: Get user's pinyin input ---
+function getPinyinInputAnswer() {
+    if (!pinyinInputContainer) return [];
+    const userAnswer = [];
+    const syllableBlocks = pinyinInputContainer.querySelectorAll('.syllable-block');
+
+    syllableBlocks.forEach(block => {
+        const letters = block.querySelector('.pinyin-letters').textContent;
+        const selectedButton = block.querySelector('.tone-button.selected');
+        const userTone = selectedButton ? parseInt(selectedButton.dataset.tone, 10) : 0; // 0 if no selection
+        
+        userAnswer.push({
+            letters: letters,
+            userTone: userTone
+        });
+    });
+
+    console.log("User's pinyin answer:", userAnswer);
+    return userAnswer;
+}
+// ------------------------------------

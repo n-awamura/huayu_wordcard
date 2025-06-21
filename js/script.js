@@ -253,55 +253,53 @@ const validSyllables = new Set([
   'ca', 'ce', 'ci', 'cai', 'cao', 'cou', 'can', 'cen', 'cang', 'ceng', 'cong', 'cu', 'cuo', 'cui', 'cun',
   'sa', 'se', 'si', 'sai', 'sao', 'sou', 'san', 'sen', 'sang', 'seng', 'song', 'su', 'suo', 'sui', 'sun',
   // special nasals
-  'hm', 'hng', 'm', 'n', 'ng', 'r'
+  'hm', 'hng', 'm', 'n', 'ng',
+  // Common r-ending syllables (erhua), add more as needed
+  'zher', 'nar', 'wanr', 'huar', 'dianr'
 ]);
 
 
 // Helper function to remove tone marks from a pinyin string for dictionary lookup.
 function removeTones(pinyinStrWithTones) {
-    if (!pinyinStrWithTones) return '';
-    let str = '';
-    for (const char of pinyinStrWithTones) {
-        if (toneMarkMap[char]) {
-            str += toneMarkMap[char][0]; // Add the base vowel (e.g., 'a' for 'ā')
-        } else {
-            str += char;
-        }
-    }
-    // Normalize 'v' to 'ü' as 'ü' is used in the dictionary.
-    return str.replace(/v/g, 'ü');
+    return pinyinStrWithTones.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ü/g, 'u');
 }
 
-// --- NEW: Recursive segmenter with memoization ---
-const memo = new Map();
+/**
+ * Segments a pinyin string into an array of valid syllables.
+ * This version uses a greedy, longest-match-first approach based on a dictionary of valid syllables.
+ * @param {string} s - The pinyin string to segment (e.g., "xihuan").
+ * @returns {string[]} An array of segmented syllables (e.g., ["xi", "huan"]).
+ */
 function segmentPinyin(s) {
-    if (s === '') return [];
-    if (memo.has(s)) return memo.get(s);
+    const pinyin = s.toLowerCase().replace(/\s+/g, '');
+    let result = [];
+    let currentPos = 0;
 
-    // Iterate from longest possible syllable to shortest
-    for (let i = Math.min(s.length, 6); i > 0; i--) {
-        const prefix = s.substring(0, i);
-        if (validSyllables.has(prefix)) {
-            const suffixSegmentation = segmentPinyin(s.substring(i));
-            if (suffixSegmentation !== null) { // null indicates failure to segment suffix
-                const result = [prefix, ...suffixSegmentation];
-                memo.set(s, result);
-                return result;
+    while (currentPos < pinyin.length) {
+        let found = false;
+        // Iterate from the longest possible syllable length down to 1
+        for (let len = Math.min(6, pinyin.length - currentPos); len > 0; len--) {
+            const sub = pinyin.substring(currentPos, currentPos + len);
+            if (validSyllables.has(sub)) {
+                result.push(sub);
+                currentPos += len;
+                found = true;
+                break;
             }
         }
+        // If no valid syllable is found, treat the single character as a syllable and move on.
+        // This handles cases like 'n', 'm', 'r' that can sometimes stand alone or be part of an invalid string.
+        if (!found) {
+            result.push(pinyin[currentPos]);
+            currentPos++;
+        }
     }
-
-    memo.set(s, null); // Mark this string as unsegmentable
-    return null;
+    return result;
 }
-
 
 // Parses a pinyin string with tone marks into syllables with letters and tone numbers
 function parsePinyin(pinyinStrWithTones) {
     if (!pinyinStrWithTones) return [];
-
-    // Clear memoization cache for each new call.
-    memo.clear();
 
     const pinyinParts = pinyinStrWithTones.split("'");
     const finalParsedSyllables = [];
@@ -1578,3 +1576,4 @@ async function saveLastUsedLevel(levelId) {
         // Optionally notify the user or retry?
     }
 }
+
